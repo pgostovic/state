@@ -1,0 +1,39 @@
+{
+  "name": "@phnq/state",
+  "version": "1.0.0",
+  "description": "State management for React",
+  "main": "index.js",
+  "scripts": {
+    "dist": "tsc",
+    "postdist": "ts-node scripts/postdist",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "release:patch": "npm version patch; npm run dist; cd dist; npm publish",
+    "release:minor": "npm version minor; npm run dist; cd dist; npm publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pgostovic/state.git"
+  },
+  "author": "Patrick Gostovic",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pgostovic/state/issues"
+  },
+  "homepage": "https://github.com/pgostovic/state#readme",
+  "dependencies": {
+    "@phnq/log": "^1.0.1",
+    "@types/prop-types": "^15.5.8",
+    "@types/react": "^16.7.20",
+    "react": "^16.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^10.12.18",
+    "prettier": "^1.16.0",
+    "rimraf": "^2.6.3",
+    "ts-node": "^8.0.1",
+    "tslint": "^5.12.1",
+    "tslint-config-prettier": "^1.17.0",
+    "typescript": "^3.2.4"
+  }
+}
