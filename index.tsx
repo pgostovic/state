@@ -104,14 +104,14 @@ export const createState = (
     }
   }
 
-  const provider = (() => (Wrapped: Class): any => (props: any): any => (
+  const provider = ((): any => (Wrapped: Class): any => (props: any): any => (
     <StateProvider>
       <Wrapped {...props} />
     </StateProvider>
   ))();
 
   const map = (mapFn = (s: any) => s) =>
-    (() => (Wrapped: Class): any => (props: any): any => (
+    ((): any => (Wrapped: Class): any => (props: any): any => (
       <Consumer>
         {state => (
           <StateConsumer {...props} {...state}>
