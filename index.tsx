@@ -110,7 +110,7 @@ export const createState = (
     </StateProvider>
   ))();
 
-  const map = (mapFn = (s: any) => s) =>
+  const map = (mapFn = (s: any): any => s): any =>
     ((): any => (Wrapped: Class): any => (props: any): any => (
       <Consumer>
         {state => (
