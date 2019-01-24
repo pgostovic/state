@@ -104,7 +104,7 @@ export const createState = (
     }
   }
 
-  const provider = (() => (Wrapped: Class) => (props: any) => (
+  const provider = (() => (Wrapped: Class): any => (props: any): any => (
     <StateProvider>
       <Wrapped {...props} />
     </StateProvider>
