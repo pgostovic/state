@@ -11,6 +11,8 @@ declare global {
   }
 }
 
+type Class = new (...args: any[]) => any;
+
 // if (!window.getCombinedState) {
 //   window.getCombinedState = () =>
 //     Object.keys(providers).reduce(
@@ -102,14 +104,14 @@ export const createState = (
     }
   }
 
-  const provider = (() => (Wrapped: any) => (props: any) => (
+  const provider = (() => (Wrapped: Class) => (props: any) => (
     <StateProvider>
       <Wrapped {...props} />
     </StateProvider>
   ))();
 
   const map = (mapFn = (s: any) => s) =>
-    (() => (Wrapped: any) => (props: any) => (
+    (() => (Wrapped: Class) => (props: any) => (
       <Consumer>
         {state => (
           <StateConsumer {...props} {...state}>
