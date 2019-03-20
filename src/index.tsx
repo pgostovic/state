@@ -1,5 +1,17 @@
+/* tslint:disable max-classes-per-file */
+
 import { createLogger } from '@phnq/log';
 import React, { Component, createContext, PureComponent } from 'react';
+
+type IValue = string | number | boolean | IData | undefined;
+
+interface IData {
+  [key: string]: IValue | IValue[];
+}
+
+interface IReturnsVoid {
+  [key: string]: (...args: any[]) => void;
+}
 
 const log = createLogger('phnq-lib.state');
 const names = new Set<string>();
@@ -21,17 +33,20 @@ type Class = new (...args: any[]) => any;
 //     );
 // }
 
-interface StateProviderProps {}
+interface IStateProviderProps {}
 
-interface StateConsumerProps {
+interface IStateConsumerProps {
   _incrementConsumerCount(): void;
   _decrementConsumerCount(): void;
 }
 
-export const createState = (
+export const createState = <TState, TActions>(
   name: string,
-  defaultState = {},
-  getActions: any = () => ({}),
+  defaultState: TState & IData,
+  getActions: (
+    getState: () => any,
+    setState: (s: any) => void,
+  ) => TActions & IReturnsVoid,
 ) => {
   if (names.has(name)) {
     throw new Error(`State names must be unique - '${name}' already exists`);
@@ -42,22 +57,22 @@ export const createState = (
 
   const { Provider, Consumer } = createContext({});
 
-  class StateProvider extends Component<StateProviderProps> {
+  class StateProvider extends Component<IStateProviderProps> {
     private consumerCount: number;
     private actions: any;
 
-    constructor(props: StateProviderProps) {
+    constructor(props: IStateProviderProps) {
       super(props);
       // providers[name] = this;
       this.consumerCount = 0;
-      this.state = defaultState;
+      this.state = defaultState as TState;
       this.actions = getActions(
         () => ({ ...this.state }),
         (state: any) => {
           log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, state);
           this.setState(state);
         },
-      );
+      ) as TActions;
 
       Object.keys(this.actions).forEach(k => {
         this.actions[k] = this.actions[k].bind(this.actions);
@@ -85,7 +100,7 @@ export const createState = (
     }
   }
 
-  class StateConsumer extends PureComponent<StateConsumerProps> {
+  class StateConsumer extends PureComponent<IStateConsumerProps> {
     public componentDidMount() {
       const { _incrementConsumerCount } = this.props;
 
