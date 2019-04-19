@@ -15,9 +15,10 @@ interface IReturnsVoid {
 
 const log = createLogger('phnq-lib.state');
 const names = new Set<string>();
-// const providers = new Map<string, Component>();
+const providers: { [key: string]: Component<IStateProviderProps> } = {};
 
 declare global {
+  // tslint:disable-next-line: interface-name
   interface Window {
     getCombinedState: () => any;
   }
@@ -25,14 +26,18 @@ declare global {
 
 type Class = new (...args: any[]) => any;
 
-// if (!window.getCombinedState) {
-//   window.getCombinedState = () =>
-//     Object.keys(providers).reduce(
-//       (states, k) => ({ ...states, [k]: (providers.get(k) || {}).state }),
-//       {},
-//     );
-// }
+if (!window.getCombinedState) {
+  window.getCombinedState = () =>
+    Object.keys(providers).reduce(
+      (states, k) => ({
+        ...states,
+        [k]: ((providers[k] || {}) as any).state,
+      }),
+      {},
+    );
+}
 
+// tslint:disable-next-line: no-empty-interface
 interface IStateProviderProps {}
 
 interface IStateConsumerProps {
@@ -40,12 +45,16 @@ interface IStateConsumerProps {
   _decrementConsumerCount(): void;
 }
 
+interface IGetActionsParams<TState> {
+  getState(): TState;
+  setState(subState: { [key in keyof TState]?: TState[key] }): void;
+}
+
 export const createState = <TState, TActions>(
   name: string,
   defaultState: TState & IData,
   getActions: (
-    getState: () => any,
-    setState: (s: any) => void,
+    getActionsParams: IGetActionsParams<TState>,
   ) => TActions & IReturnsVoid,
 ) => {
   if (names.has(name)) {
@@ -59,20 +68,24 @@ export const createState = <TState, TActions>(
 
   class StateProvider extends Component<IStateProviderProps> {
     private consumerCount: number;
-    private actions: any;
+    private actions: TActions &
+      IReturnsVoid & {
+        _incrementConsumerCount?(): void;
+        _decrementConsumerCount?(): void;
+      };
 
     constructor(props: IStateProviderProps) {
       super(props);
-      // providers[name] = this;
+      providers[name] = this;
       this.consumerCount = 0;
       this.state = defaultState as TState;
-      this.actions = getActions(
-        () => ({ ...this.state }),
-        (state: any) => {
-          log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, state);
-          this.setState(state);
+      this.actions = getActions({
+        getState: () => ({ ...this.state } as TState),
+        setState: subState => {
+          log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, subState);
+          this.setState(subState);
         },
-      ) as TActions;
+      });
 
       Object.keys(this.actions).forEach(k => {
         this.actions[k] = this.actions[k].bind(this.actions);

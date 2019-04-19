@@ -7,6 +7,7 @@ configure({ adapter: new Adapter() });
 
 interface IState {
   num: number;
+  other: string;
 }
 
 interface IActions {
@@ -17,8 +18,9 @@ const testState = createState<IState, IActions>(
   'test',
   {
     num: 42,
+    other: 'stuff',
   },
-  (getState, setState) => ({
+  ({ getState, setState }) => ({
     incrementNum() {
       setState({ num: 1 + getState().num });
     },

@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/pgostovic/state#readme",
   "dependencies": {
-    "@phnq/log": "^1.0.1",
+    "@phnq/log": "^1.0.3",
     "react": "^16.7.0"
   },
   "devDependencies": {
