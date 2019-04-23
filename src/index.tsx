@@ -1,7 +1,7 @@
 /* tslint:disable max-classes-per-file */
 
 import { createLogger } from '@phnq/log';
-import React, { Component, createContext, PureComponent } from 'react';
+import React, { Component, createContext } from 'react';
 
 type IValue = string | number | boolean | IData | undefined;
 
@@ -113,7 +113,7 @@ export const createState = <TState, TActions>(
     }
   }
 
-  class StateConsumer extends PureComponent<IStateConsumerProps> {
+  class StateConsumer extends Component<IStateConsumerProps> {
     public componentDidMount() {
       const { _incrementConsumerCount } = this.props;
 
