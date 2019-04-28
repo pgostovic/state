@@ -1,4 +1,8 @@
-# @phnq/state [![CircleCI](https://circleci.com/gh/pgostovic/message.svg?style=svg)](https://circleci.com/gh/pgostovic/state)
+# @phnq/state
+
+[![CircleCI](https://circleci.com/gh/pgostovic/message.svg?style=svg)](https://circleci.com/gh/pgostovic/state)
+
+[![npm version](https://badge.fury.io/js/%40phnq%2Fstate.svg)](https://badge.fury.io/js/%40phnq%2Fstate)
 
 State management for React. Kind of like Redux but with less boilerplate. It's pretty simple, but useful.
 
