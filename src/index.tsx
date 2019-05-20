@@ -1,7 +1,7 @@
 /* tslint:disable max-classes-per-file */
 
 import { createLogger } from '@phnq/log';
-import React, { Component, createContext } from 'react';
+import React, { Component, ComponentType, createContext } from 'react';
 
 type IValue = string | number | boolean | IData | undefined;
 
@@ -24,14 +24,12 @@ declare global {
   }
 }
 
-type Class = new (...args: any[]) => any;
-
 if (!window.getCombinedState) {
   window.getCombinedState = () =>
     Object.keys(providers).reduce(
       (states, k) => ({
         ...states,
-        [k]: ((providers[k] || {}) as any).state,
+        [k]: (providers[k] as any).state,
       }),
       {},
     );
@@ -132,14 +130,18 @@ export const createState = <TState, TActions>(
     }
   }
 
-  const provider = ((): any => (Wrapped: Class): any => (props: any): any => (
+  const provider = ((): HOC => (Wrapped: ComponentType): IWrapper => (
+    props: any,
+  ): JSX.Element => (
     <StateProvider>
       <Wrapped {...props} />
     </StateProvider>
   ))();
 
-  const map = (mapFn = (s: any): any => s): any =>
-    ((): any => (Wrapped: Class): any => (props: any): any => (
+  const map = (mapFn = (s: any): any => s): HOC =>
+    ((): HOC => (Wrapped: ComponentType): IWrapper => (
+      props: any,
+    ): JSX.Element => (
       <Consumer>
         {state => (
           <StateConsumer {...props} {...state}>
@@ -151,3 +153,6 @@ export const createState = <TState, TActions>(
 
   return { provider, consumer: map(), map };
 };
+
+type IWrapper = (props: any) => JSX.Element;
+type HOC = (Wrapped: any) => IWrapper;

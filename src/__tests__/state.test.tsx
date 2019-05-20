@@ -1,9 +1,9 @@
-import { configure, mount } from 'enzyme';
-import Adapter from 'enzyme-adapter-react-16';
-import React, { Component } from 'react';
-import { createState } from '../index';
+// tslint:disable: max-classes-per-file
 
-configure({ adapter: new Adapter() });
+import 'jest-dom/extend-expect';
+import React, { Component } from 'react';
+import { cleanup, fireEvent, render } from 'react-testing-library';
+import { createState } from '../index';
 
 interface IState {
   num: number;
@@ -12,42 +12,103 @@ interface IState {
 
 interface IActions {
   incrementNum: () => void;
+  resetState: () => void;
 }
+
+const DEFAULT_STATE = {
+  num: 42,
+  other: 'stuff',
+};
 
 const testState = createState<IState, IActions>(
   'test',
-  {
-    num: 42,
-    other: 'stuff',
-  },
+  DEFAULT_STATE,
   ({ getState, setState }) => ({
     incrementNum() {
       setState({ num: 1 + getState().num });
     },
+    resetState() {
+      setState(DEFAULT_STATE);
+    },
   }),
 );
 
-class TestComp extends Component<IState & IActions> {
-  public render() {
-    const { num, incrementNum } = this.props;
-    return <button onClick={() => incrementNum()}>{num}</button>;
-  }
-}
+const TestConsumer = testState.consumer(
+  class extends Component<IState & IActions> {
+    public render() {
+      const { num, incrementNum, resetState } = this.props;
+      return (
+        <>
+          <button data-testid='the-button' onClick={() => incrementNum()}>
+            {num}
+          </button>
+          <button data-testid='reset-button' onClick={() => resetState()}>
+            Reset
+          </button>
+        </>
+      );
+    }
+  },
+);
 
-const TestCompWithState = testState.provider(testState.consumer(TestComp));
+const TestProvider = testState.provider(
+  class extends Component {
+    public render() {
+      return (
+        <div>
+          <TestConsumer />
+        </div>
+      );
+    }
+  },
+);
+
+afterEach(cleanup);
 
 test('default state', () => {
-  const comp = mount(<TestCompWithState />);
-
-  expect(comp.find('button').text()).toBe('42');
+  const result = render(<TestProvider />);
+  expect(result.getByTestId('the-button')).toHaveTextContent('42');
 });
 
 test('state change with action', () => {
-  const comp = mount(<TestCompWithState />);
+  const result = render(<TestProvider />);
+  const button = result.getByTestId('the-button');
 
-  expect(comp.find('button').text()).toBe('42');
+  expect(button).toHaveTextContent('42');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
+});
 
-  comp.find('button').simulate('click');
+test('create state with existing name', () => {
+  expect(() => {
+    createState<IState, IActions>(
+      'test',
+      {
+        num: 22,
+        other: 'wrong',
+      },
+      ({ getState, setState }) => ({
+        incrementNum() {
+          setState({ num: 1 + getState().num });
+        },
+        resetState() {
+          setState(DEFAULT_STATE);
+        },
+      }),
+    );
+  }).toThrow();
+});
 
-  expect(comp.find('button').text()).toBe('43');
+test('getCombinedState', () => {
+  const result = render(<TestProvider />);
+  const resetButton = result.getByTestId('reset-button');
+  const theButton = result.getByTestId('the-button');
+
+  fireEvent.click(resetButton);
+
+  expect(window.getCombinedState().test.num).toBe(42);
+
+  fireEvent.click(theButton);
+
+  expect(window.getCombinedState().test.num).toBe(43);
 });
