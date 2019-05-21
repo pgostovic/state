@@ -3,7 +3,7 @@
 import 'jest-dom/extend-expect';
 import React, { Component } from 'react';
 import { cleanup, fireEvent, render } from 'react-testing-library';
-import { createState } from '../index';
+import { createState, inject } from '../index';
 
 interface IState {
   num: number;
@@ -33,35 +33,33 @@ const testState = createState<IState, IActions>(
   }),
 );
 
-const TestConsumer = testState.consumer(
-  class extends Component<IState & IActions> {
-    public render() {
-      const { num, incrementNum, resetState } = this.props;
-      return (
-        <>
-          <button data-testid='the-button' onClick={() => incrementNum()}>
-            {num}
-          </button>
-          <button data-testid='reset-button' onClick={() => resetState()}>
-            Reset
-          </button>
-        </>
-      );
-    }
-  },
-);
+@testState.consumer
+class TestConsumer extends Component<IState & IActions> {
+  public render() {
+    const { num, incrementNum, resetState } = this.props;
+    return (
+      <>
+        <button data-testid='the-button' onClick={() => incrementNum()}>
+          {num}
+        </button>
+        <button data-testid='reset-button' onClick={() => resetState()}>
+          Reset
+        </button>
+      </>
+    );
+  }
+}
 
-const TestProvider = testState.provider(
-  class extends Component {
-    public render() {
-      return (
-        <div>
-          <TestConsumer />
-        </div>
-      );
-    }
-  },
-);
+@testState.provider
+class TestProvider extends Component {
+  public render() {
+    return (
+      <div>
+        <TestConsumer {...inject<IState & IActions>()} />
+      </div>
+    );
+  }
+}
 
 afterEach(cleanup);
 

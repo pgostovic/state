@@ -130,7 +130,7 @@ export const createState = <TState, TActions>(
     }
   }
 
-  const provider = ((): HOC => (Wrapped: ComponentType): IWrapper => (
+  const provider = ((): any => (Wrapped: ComponentType): IWrapper => (
     props: any,
   ): JSX.Element => (
     <StateProvider>
@@ -138,7 +138,7 @@ export const createState = <TState, TActions>(
     </StateProvider>
   ))();
 
-  const map = (mapFn = (s: any): any => s): HOC =>
+  const map = (mapFn = (s: any): any => s): any =>
     ((): HOC => (Wrapped: ComponentType): IWrapper => (
       props: any,
     ): JSX.Element => (
@@ -156,3 +156,5 @@ export const createState = <TState, TActions>(
 
 type IWrapper = (props: any) => JSX.Element;
 type HOC = (Wrapped: any) => IWrapper;
+
+export const inject = <T extends {}>() => ({} as T);

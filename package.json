@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dist": "tsc",
-    "postdist": "ts-node scripts/postdist",
+    "postdist": "rimraf dist/__tests__;  ts-node scripts/postdist",
     "clean": "rimraf dist",
     "test": "jest src --coverage",
     "release:patch": "npm version patch; npm run dist; cd dist; npm publish",
