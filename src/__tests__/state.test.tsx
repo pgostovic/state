@@ -11,8 +11,8 @@ interface IState {
 }
 
 interface IActions {
-  incrementNum: () => void;
-  resetState: () => void;
+  incrementNum(): void;
+  resetState(): void;
 }
 
 const DEFAULT_STATE = {
@@ -20,10 +20,25 @@ const DEFAULT_STATE = {
   other: 'stuff',
 };
 
+let initFn: jest.Mock | undefined;
+let destroyFn: jest.Mock | undefined;
+
 const testState = createState<IState, IActions>(
   'test',
   DEFAULT_STATE,
   ({ getState, setState }) => ({
+    init() {
+      if (initFn) {
+        initFn();
+      }
+    },
+
+    destroy() {
+      if (destroyFn) {
+        destroyFn();
+      }
+    },
+
     incrementNum() {
       setState({ num: 1 + getState().num });
     },
@@ -60,6 +75,11 @@ class TestProvider extends Component {
     );
   }
 }
+
+beforeEach(() => {
+  initFn = undefined;
+  destroyFn = undefined;
+});
 
 afterEach(cleanup);
 
@@ -109,4 +129,21 @@ test('getCombinedState', () => {
   fireEvent.click(theButton);
 
   expect(window.getCombinedState().test.num).toBe(43);
+});
+
+test('init gets called', () => {
+  initFn = jest.fn();
+
+  render(<TestProvider />);
+
+  expect(initFn).toHaveBeenCalledTimes(1);
+});
+
+test('destroy gets called', () => {
+  destroyFn = jest.fn();
+
+  render(<TestProvider />);
+  cleanup();
+
+  expect(destroyFn).toHaveBeenCalledTimes(1);
 });

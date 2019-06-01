@@ -100,6 +100,18 @@ export const createState = <TState, TActions>(
       this.actions = Object.freeze(this.actions);
     }
 
+    public componentDidMount() {
+      if (typeof this.actions.init === 'function') {
+        this.actions.init();
+      }
+    }
+
+    public componentWillUnmount() {
+      if (typeof this.actions.destroy === 'function') {
+        this.actions.destroy();
+      }
+    }
+
     public render() {
       const { children } = this.props;
       const value = {
