@@ -7,7 +7,7 @@ interface Data {
   [key: string]: IValue | IValue[];
 }
 
-const log = createLogger('phnq-lib.state');
+const log = createLogger('@phnq/state');
 const names = new Set<string>();
 const providers: { [key: string]: Component<StateProviderProps> } = {};
 
