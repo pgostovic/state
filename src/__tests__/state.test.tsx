@@ -1,6 +1,6 @@
 import 'jest-dom/extend-expect';
 
-import React, { Component } from 'react';
+import React, { Component, FC } from 'react';
 import { cleanup, fireEvent, render } from 'react-testing-library';
 
 import { createState, inject } from '../index';
@@ -61,6 +61,17 @@ class TestConsumer extends Component<State & Actions> {
   }
 }
 
+const TestConsumerFC: FC<State & Actions> = testState.consumer(({ num, incrementNum, resetState }: State & Actions) => (
+  <>
+    <button data-testid="the-button" onClick={() => incrementNum()}>
+      {num}
+    </button>
+    <button data-testid="reset-button" onClick={() => resetState()}>
+      Reset
+    </button>
+  </>
+));
+
 @testState.provider
 class TestProvider extends Component {
   public render() {
@@ -71,6 +82,12 @@ class TestProvider extends Component {
     );
   }
 }
+
+const TestProviderFC: FC = testState.provider(() => (
+  <div>
+    <TestConsumerFC {...inject<State & Actions>()} />
+  </div>
+));
 
 beforeEach(() => {
   initFn = undefined;
@@ -84,8 +101,22 @@ test('default state', () => {
   expect(result.getByTestId('the-button')).toHaveTextContent('42');
 });
 
+test('default state FC', () => {
+  const resultFC = render(<TestProviderFC />);
+  expect(resultFC.getByTestId('the-button')).toHaveTextContent('42');
+});
+
 test('state change with action', () => {
   const result = render(<TestProvider />);
+  const button = result.getByTestId('the-button');
+
+  expect(button).toHaveTextContent('42');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
+});
+
+test('state change with action FC', () => {
+  const result = render(<TestProviderFC />);
   const button = result.getByTestId('the-button');
 
   expect(button).toHaveTextContent('42');
@@ -127,6 +158,20 @@ test('getCombinedState', () => {
   expect(window.getCombinedState().test.num).toBe(43);
 });
 
+test('getCombinedState FC', () => {
+  const result = render(<TestProviderFC />);
+  const resetButton = result.getByTestId('reset-button');
+  const theButton = result.getByTestId('the-button');
+
+  fireEvent.click(resetButton);
+
+  expect(window.getCombinedState().test.num).toBe(42);
+
+  fireEvent.click(theButton);
+
+  expect(window.getCombinedState().test.num).toBe(43);
+});
+
 test('init gets called', () => {
   initFn = jest.fn();
 
@@ -135,10 +180,27 @@ test('init gets called', () => {
   expect(initFn).toHaveBeenCalledTimes(1);
 });
 
+test('init gets called FC', () => {
+  initFn = jest.fn();
+
+  render(<TestProviderFC />);
+
+  expect(initFn).toHaveBeenCalledTimes(1);
+});
+
 test('destroy gets called', () => {
   destroyFn = jest.fn();
 
   render(<TestProvider />);
+  cleanup();
+
+  expect(destroyFn).toHaveBeenCalledTimes(1);
+});
+
+test('destroy gets called FC', () => {
+  destroyFn = jest.fn();
+
+  render(<TestProviderFC />);
   cleanup();
 
   expect(destroyFn).toHaveBeenCalledTimes(1);
