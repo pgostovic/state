@@ -1,16 +1,16 @@
-// tslint:disable: max-classes-per-file
-
 import 'jest-dom/extend-expect';
+
 import React, { Component } from 'react';
 import { cleanup, fireEvent, render } from 'react-testing-library';
+
 import { createState, inject } from '../index';
 
-interface IState {
+interface State {
   num: number;
   other: string;
 }
 
-interface IActions {
+interface Actions {
   incrementNum(): void;
   resetState(): void;
 }
@@ -23,41 +23,37 @@ const DEFAULT_STATE = {
 let initFn: jest.Mock | undefined;
 let destroyFn: jest.Mock | undefined;
 
-const testState = createState<IState, IActions>(
-  'test',
-  DEFAULT_STATE,
-  ({ getState, setState }) => ({
-    init() {
-      if (initFn) {
-        initFn();
-      }
-    },
+const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState, setState }) => ({
+  init() {
+    if (initFn) {
+      initFn();
+    }
+  },
 
-    destroy() {
-      if (destroyFn) {
-        destroyFn();
-      }
-    },
+  destroy() {
+    if (destroyFn) {
+      destroyFn();
+    }
+  },
 
-    incrementNum() {
-      setState({ num: 1 + getState().num });
-    },
-    resetState() {
-      setState(DEFAULT_STATE);
-    },
-  }),
-);
+  incrementNum() {
+    setState({ num: 1 + getState().num });
+  },
+  resetState() {
+    setState(DEFAULT_STATE);
+  },
+}));
 
 @testState.consumer
-class TestConsumer extends Component<IState & IActions> {
+class TestConsumer extends Component<State & Actions> {
   public render() {
     const { num, incrementNum, resetState } = this.props;
     return (
       <>
-        <button data-testid='the-button' onClick={() => incrementNum()}>
+        <button data-testid="the-button" onClick={() => incrementNum()}>
           {num}
         </button>
-        <button data-testid='reset-button' onClick={() => resetState()}>
+        <button data-testid="reset-button" onClick={() => resetState()}>
           Reset
         </button>
       </>
@@ -70,7 +66,7 @@ class TestProvider extends Component {
   public render() {
     return (
       <div>
-        <TestConsumer {...inject<IState & IActions>()} />
+        <TestConsumer {...inject<State & Actions>()} />
       </div>
     );
   }
@@ -99,7 +95,7 @@ test('state change with action', () => {
 
 test('create state with existing name', () => {
   expect(() => {
-    createState<IState, IActions>(
+    createState<State, Actions>(
       'test',
       {
         num: 22,
