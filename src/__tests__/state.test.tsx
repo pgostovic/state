@@ -8,16 +8,22 @@ import { createState, inject } from '../index';
 interface State {
   num: number;
   other: string;
+  person: {
+    firstName?: string;
+    lastName?: string;
+  };
 }
 
 interface Actions {
   incrementNum(): void;
   resetState(): void;
+  setPerson(person: { firstName?: string; lastName?: string }): void;
 }
 
 const DEFAULT_STATE = {
   num: 42,
   other: 'stuff',
+  person: {},
 };
 
 let initFn: jest.Mock | undefined;
@@ -39,15 +45,25 @@ const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState
   incrementNum() {
     setState({ num: 1 + getState().num });
   },
+
   resetState() {
     setState(DEFAULT_STATE);
+  },
+
+  setPerson(person: { firstName?: string; lastName?: string }): void {
+    setState({ person });
   },
 }));
 
 @testState.consumer
 class TestConsumer extends Component<State & Actions> {
   public render() {
-    const { num, incrementNum, resetState } = this.props;
+    const {
+      num,
+      incrementNum,
+      resetState,
+      person: { firstName, lastName },
+    } = this.props;
     return (
       <>
         <button data-testid="the-button" onClick={() => incrementNum()}>
@@ -56,21 +72,27 @@ class TestConsumer extends Component<State & Actions> {
         <button data-testid="reset-button" onClick={() => resetState()}>
           Reset
         </button>
+        <div data-testid="firstName">{firstName}</div>
+        <div data-testid="lastName">{lastName}</div>
       </>
     );
   }
 }
 
-const TestConsumerFC: FC<State & Actions> = testState.consumer(({ num, incrementNum, resetState }: State & Actions) => (
-  <>
-    <button data-testid="the-button" onClick={() => incrementNum()}>
-      {num}
-    </button>
-    <button data-testid="reset-button" onClick={() => resetState()}>
-      Reset
-    </button>
-  </>
-));
+const TestConsumerFC: FC<State & Actions> = testState.consumer(
+  ({ num, incrementNum, resetState, person: { firstName, lastName } }: State & Actions) => (
+    <>
+      <button data-testid="the-button" onClick={() => incrementNum()}>
+        {num}
+      </button>
+      <button data-testid="reset-button" onClick={() => resetState()}>
+        Reset
+      </button>
+      <div data-testid="firstName">{firstName}</div>
+      <div data-testid="lastName">{lastName}</div>
+    </>
+  ),
+);
 
 @testState.provider
 class TestProvider extends Component {
@@ -131,6 +153,7 @@ test('create state with existing name', () => {
       {
         num: 22,
         other: 'wrong',
+        person: {},
       },
       ({ getState, setState }) => ({
         incrementNum() {
@@ -138,6 +161,9 @@ test('create state with existing name', () => {
         },
         resetState() {
           setState(DEFAULT_STATE);
+        },
+        setPerson(person: { firstName?: string; lastName?: string }): void {
+          setState({ person });
         },
       }),
     );
