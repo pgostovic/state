@@ -1,12 +1,6 @@
 import { createLogger } from '@phnq/log';
 import React, { Component, ComponentType, createContext } from 'react';
 
-type IValue = string | number | boolean | Data | undefined;
-
-interface Data {
-  [key: string]: IValue | IValue[];
-}
-
 const log = createLogger('@phnq/state');
 const names = new Set<string>();
 const providers: { [key: string]: Component<StateProviderProps> } = {};
@@ -43,7 +37,7 @@ interface GetActionsParams<TState> {
 
 export const createState = <TState, TActions>(
   name: string,
-  defaultState: TState & Data,
+  defaultState: TState,
   getActions: (getActionsParams: GetActionsParams<TState>) => TActions,
 ) => {
   if (names.has(name)) {
