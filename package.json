@@ -4,7 +4,7 @@
   "description": "State management for React",
   "main": "index.js",
   "scripts": {
-    "preinstall": "mkdir -p node_modules; touch node_modules/.nosync",
+    "preinstall": "scripts/preinstall.sh",
     "dist": "tsc",
     "postdist": "rimraf dist/__tests__;  ts-node scripts/postdist",
     "clean": "rimraf dist",
