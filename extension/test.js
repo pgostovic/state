@@ -1,0 +1,3 @@
+window.getCombinedState = () => ({
+  foo: 'bar',
+});
