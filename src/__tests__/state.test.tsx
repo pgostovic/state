@@ -12,18 +12,21 @@ interface State {
     firstName?: string;
     lastName?: string;
   };
+  didit: boolean;
 }
 
 interface Actions {
   incrementNum(): void;
   resetState(): void;
   setPerson(person: { firstName?: string; lastName?: string }): void;
+  doit(): void;
 }
 
 const DEFAULT_STATE = {
   num: 42,
   other: 'stuff',
   person: {},
+  didit: false,
 };
 
 let initFn: jest.Mock | undefined;
@@ -43,6 +46,7 @@ const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState
   },
 
   incrementNum() {
+    this.doit();
     setState({ num: 1 + getState().num });
   },
 
@@ -52,6 +56,10 @@ const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState
 
   setPerson(person: { firstName?: string; lastName?: string }): void {
     setState({ person });
+  },
+
+  doit(): void {
+    setState({ didit: true });
   },
 }));
 
@@ -63,6 +71,7 @@ class TestConsumer extends Component<State & Actions> {
       incrementNum,
       resetState,
       person: { firstName, lastName },
+      didit,
     } = this.props;
     return (
       <>
@@ -74,13 +83,14 @@ class TestConsumer extends Component<State & Actions> {
         </button>
         <div data-testid="firstName">{firstName}</div>
         <div data-testid="lastName">{lastName}</div>
+        <div data-testid="didit">{didit ? 'yes' : 'no'}</div>
       </>
     );
   }
 }
 
 const TestConsumerFC: FC<State & Actions> = testState.consumer(
-  ({ num, incrementNum, resetState, person: { firstName, lastName } }: State & Actions) => (
+  ({ num, incrementNum, resetState, person: { firstName, lastName }, didit }: State & Actions) => (
     <>
       <button data-testid="the-button" onClick={() => incrementNum()}>
         {num}
@@ -90,6 +100,7 @@ const TestConsumerFC: FC<State & Actions> = testState.consumer(
       </button>
       <div data-testid="firstName">{firstName}</div>
       <div data-testid="lastName">{lastName}</div>
+      <div data-testid="didit">{didit ? 'yes' : 'no'}</div>
     </>
   ),
 );
@@ -131,19 +142,25 @@ test('default state FC', () => {
 test('state change with action', () => {
   const result = render(<TestProvider />);
   const button = result.getByTestId('the-button');
+  const didit = result.getByTestId('didit');
 
   expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
   fireEvent.click(button);
   expect(button).toHaveTextContent('43');
+  expect(didit).toHaveTextContent('yes');
 });
 
 test('state change with action FC', () => {
   const result = render(<TestProviderFC />);
   const button = result.getByTestId('the-button');
+  const didit = result.getByTestId('didit');
 
   expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
   fireEvent.click(button);
   expect(button).toHaveTextContent('43');
+  expect(didit).toHaveTextContent('yes');
 });
 
 test('create state with existing name', () => {
@@ -154,16 +171,21 @@ test('create state with existing name', () => {
         num: 22,
         other: 'wrong',
         person: {},
+        didit: false,
       },
       ({ getState, setState }) => ({
         incrementNum() {
           setState({ num: 1 + getState().num });
+          this.doit();
         },
         resetState() {
           setState(DEFAULT_STATE);
         },
         setPerson(person: { firstName?: string; lastName?: string }): void {
           setState({ person });
+        },
+        doit(): void {
+          setState({ didit: true });
         },
       }),
     );

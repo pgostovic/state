@@ -79,6 +79,11 @@ export const createState = <TState, TActions>(
         this.consumerCount -= 1;
       };
 
+      const actions = this.actions as { [key: string]: () => void };
+      Object.keys(actions).forEach(k => {
+        actions[k] = actions[k].bind(this.actions);
+      });
+
       this.actions = Object.freeze(this.actions);
     }
 
