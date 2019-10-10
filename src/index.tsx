@@ -32,7 +32,7 @@ interface StateConsumerProps {
 
 interface GetActionsParams<TState> {
   getState(): TState;
-  setState(subState: { [key in keyof TState]?: TState[key] }): void;
+  setState(subState: { [key in keyof TState]?: TState[key] }): Promise<void>;
 }
 
 export const createState = <TState, TActions>(
@@ -65,9 +65,14 @@ export const createState = <TState, TActions>(
       this.state = defaultState as TState;
       this.actions = getActions({
         getState: () => ({ ...this.state } as TState),
-        setState: subState => {
+        setState: (subState): Promise<void> => {
           log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, subState);
-          this.setState(subState);
+          let res: (() => void) | undefined;
+          const p = new Promise<void>(r => {
+            res = r;
+          });
+          this.setState(subState, res);
+          return p;
         },
       });
 
