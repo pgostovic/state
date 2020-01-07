@@ -32,6 +32,9 @@ const DEFAULT_STATE = {
 let initFn: jest.Mock | undefined;
 let destroyFn: jest.Mock | undefined;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+createState('test', {}, () => {});
+
 const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState, setState }) => ({
   init() {
     if (initFn) {
@@ -161,35 +164,6 @@ test('state change with action FC', () => {
   fireEvent.click(button);
   expect(button).toHaveTextContent('43');
   expect(didit).toHaveTextContent('yes');
-});
-
-test('create state with existing name', () => {
-  expect(() => {
-    createState<State, Actions>(
-      'test',
-      {
-        num: 22,
-        other: 'wrong',
-        person: {},
-        didit: false,
-      },
-      ({ getState, setState }) => ({
-        incrementNum() {
-          setState({ num: 1 + getState().num });
-          this.doit();
-        },
-        resetState() {
-          setState(DEFAULT_STATE);
-        },
-        setPerson(person: { firstName?: string; lastName?: string }): void {
-          setState({ person });
-        },
-        doit(): void {
-          setState({ didit: true });
-        },
-      }),
-    );
-  }).toThrow();
 });
 
 test('getCombinedState', () => {

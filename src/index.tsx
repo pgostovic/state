@@ -41,7 +41,9 @@ export const createState = <TState, TActions>(
   getActions: (getActionsParams: GetActionsParams<TState>) => TActions,
 ) => {
   if (names.has(name)) {
-    throw new Error(`State names must be unique - '${name}' already exists`);
+    log.warn(
+      `State '${name}' already exists. This may complicate debugging with getCombinedState(). Duplicate states may also be the result of hot module reloading which is no big deal.`,
+    );
   }
 
   log('created state %s', name);
