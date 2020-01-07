@@ -110,6 +110,7 @@ export const createState = <TState, TActions>(
         ...this.state,
         ...this.actions,
         consumerCount: this.consumerCount,
+        isPhnqState: true,
       };
       return <Provider value={value}>{children}</Provider>;
     }
@@ -143,11 +144,17 @@ export const createState = <TState, TActions>(
   const map = (mapFn = (s: any): any => s): any =>
     ((): HOC => (Wrapped: ComponentType): Wrapper => (props: any): JSX.Element => (
       <Consumer>
-        {state => (
-          <StateConsumer {...props} {...state}>
-            <Wrapped {...props} {...mapFn(state)} ref={props.innerRef} />
-          </StateConsumer>
-        )}
+        {(state: { isPhnqState?: boolean }) => {
+          if (!state.isPhnqState) {
+            log.error(`No provider found for "${name}" state.`);
+            throw new Error(`No provider found for "${name}" state.`);
+          }
+          return (
+            <StateConsumer {...props} {...state}>
+              <Wrapped {...props} {...mapFn(state)} ref={props.innerRef} />
+            </StateConsumer>
+          );
+        }}
       </Consumer>
     ))();
 

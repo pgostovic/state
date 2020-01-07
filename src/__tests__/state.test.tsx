@@ -1,7 +1,7 @@
-import 'jest-dom/extend-expect';
+import '@testing-library/jest-dom/extend-expect';
 
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import React, { Component, FC } from 'react';
-import { cleanup, fireEvent, render } from 'react-testing-library';
 
 import { createState, inject } from '../index';
 
@@ -252,4 +252,32 @@ test('destroy gets called FC', () => {
   cleanup();
 
   expect(destroyFn).toHaveBeenCalledTimes(1);
+});
+
+test('Consumer with no provider', () => {
+  const conErr = console.error;
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.error = () => {};
+  try {
+    render(<TestConsumer {...inject<State & Actions>()} />);
+    fail('Should have thrown');
+  } catch (err) {
+    expect(err.message).toBe('No provider found for "test" state.');
+  } finally {
+    console.error = conErr;
+  }
+});
+
+test('Consumer with no provider FC', () => {
+  const conErr = console.error;
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.error = () => {};
+  try {
+    render(<TestConsumerFC {...inject<State & Actions>()} />);
+    fail('Should have thrown');
+  } catch (err) {
+    expect(err.message).toBe('No provider found for "test" state.');
+  } finally {
+    console.error = conErr;
+  }
 });
