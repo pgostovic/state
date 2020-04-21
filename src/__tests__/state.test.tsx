@@ -33,7 +33,7 @@ let initFn: jest.Mock | undefined;
 let destroyFn: jest.Mock | undefined;
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
-createState('test', {}, () => {});
+createState('test', {}, () => ({}));
 
 const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState, setState }) => ({
   init() {

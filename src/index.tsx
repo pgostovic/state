@@ -35,7 +35,9 @@ interface GetActionsParams<TState> {
   setState(subState: { [key in keyof TState]?: TState[key] }): Promise<void>;
 }
 
-export const createState = <TState, TActions>(
+type VoidActions<T> = Record<keyof T, (...args: any[]) => void | Promise<void>>;
+
+export const createState = <TState, TActions extends VoidActions<TActions>>(
   name: string,
   defaultState: TState,
   getActions: (getActionsParams: GetActionsParams<TState>) => TActions,
