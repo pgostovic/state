@@ -25,10 +25,15 @@ A `consumer` brokers access to its corresponding state provider, i.e. its closes
 
 The `createState` function in `@phnq/state` is used to create create a matching domain-specific provider and consumer. It returns a JavaScript object with the keys 'provider' and 'consumer'.
 
+### State and Actions
+Inspired by Redux's nomenclature, the data in a provider's data store is referred to as `State`, and the programmatic API is said to be composed of `Actions` -- i.e. each function in the API is an `Action`.
+
+Actions are logically and semantically decoupled from the results they yield. In other words, invoking an action can be thought of as a one-way message or instruction for the data store. Any resulting state changes will materialize as prop changes in state consumers. As such, action functions may only return `void` or `Promise<void>`. This one-way communication restriction makes state management with `@phnq/state` akin to pub/sub.
+
 ## Example
 
 #### UIState.ts
-This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update set the accentColor. The provider and consumer are exported.
+This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update set the accentColor. The provider and consumer, which are returned from `createState`, are exported.
 
 ```ts
 import { createState } from '@phnq/state';
@@ -66,7 +71,7 @@ export default createState<State, Actions>(
 );
 ```
 
-#### Box.tsx
+#### Box.tsx (consumer)
 
 This Box component is a consumer of the UIState declared above. Notice how the `UIStateProps` convenience type is used to specify the incoming state interface. This component just adds a border around the incoming children node(s). The border color comes from the UIState.
 
@@ -85,9 +90,9 @@ We haven't added a provider yet though. If the Box component were rendered witho
 
     No provider found for "UI" state.
 
-#### Container.tsx
+#### Container.tsx (provider)
 
-This Container component is wrapped by the UIState provider which allows descendents to be UIState consumers.
+This Container component is wrapped by the UIState provider which allows descendents to be UIState consumers. The Box component included here now has a provider as an ancestor.
 
 ```tsx
 import React, { FC } from 'react';
@@ -103,9 +108,9 @@ const Container:FC = () => (
 export default  UIState.provider(Container);
 ```
 
-#### ChangeAccentColor.tsx
+#### ChangeAccentColor.tsx (consumer)
 
-Here's an example of component that invokes an action. It's a button that, when clicked sets the UIState's accentColor to the color passed in as a prop.
+Here's an example of a consumer component that invokes an action. It's a button that, when clicked sets the UIState's accentColor to the color passed in as a prop.
 
 ```tsx
 import React, { FC } from 'react';
@@ -127,7 +132,7 @@ export default  UIState.consumer(ChangeAccentColor);
 
 #### Container.tsx (updated to include ChangeAccentColor)
 
-This is the same Container component from above, but now it has a few buttons for changing the accent color.
+This is the same Container component from above, but now it has a few buttons for changing the accent color. Clicking a <ChangeAccentColor /> buttom will update the UIState's accentColor state, which will in-turn trigger a consumers to be re-rendered with the new value.
 
 ```tsx
 import React, { FC } from 'react';
@@ -146,4 +151,40 @@ const Container:FC = () => (
 );
 
 export default  UIState.provider(Container);
+```
+
+## Async Side-Effects
+Async side-effects in `@phnq/state` actions are possible by adding `async`. This simple facility is attributed to the one-way nature of actions.
+
+Here's an example of an action that asynchronously updates the state.
+
+```ts
+import { createState } from '@phnq/state';
+import { Thing, getThings } from 'thing-api';
+
+interface State {
+  things: Thing[];
+}
+
+interface Actions {
+  fetchThings(): Promise<void>;
+}
+
+export type ThingStateProps = State & Actions;
+
+export default createState<State, Actions>(
+  'Things',
+  {
+    things: [],
+  },
+  ({ getState, setState }) => ({
+    async fetchThings() {
+      const { things } = getState();
+      console.log('Old things: ', things);
+
+      // Imagine that getThings() makes a network request or something.
+      setState({ things: await getThings() });
+    },
+  }),
+);
 ```
