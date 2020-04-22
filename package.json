@@ -16,7 +16,14 @@
     "type": "git",
     "url": "git+https://github.com/pgostovic/state.git"
   },
-  "keywords": ["react", "state", "state management", "async", "side-effects", "phnq"],
+  "keywords": [
+    "react",
+    "state",
+    "state management",
+    "async",
+    "side-effects",
+    "phnq"
+  ],
   "author": "Patrick Gostovic",
   "license": "ISC",
   "bugs": {
@@ -24,11 +31,10 @@
   },
   "homepage": "https://github.com/pgostovic/state#readme",
   "dependencies": {
-    "@phnq/log": "^1.1.4"
-  },
-  "peerDependencies": {
+    "@phnq/log": "^1.1.4",
     "react": "^16.13.1"
   },
+  "peerDependencies": {},
   "devDependencies": {
     "@testing-library/jest-dom": "^4.2.4",
     "@testing-library/react": "^9.5.0",
