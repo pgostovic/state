@@ -13,6 +13,8 @@ Features include:
 - Relatively minimal boilerplate (compared to Redux)
 - Built-in support for side-effects (async or otherwise)
 
+Go straight to some [code examples](#examples).
+
 ### Providers and Consumers
 
 State `providers` and `consumers` are React higher-order components (HOCs) that provide state-related functionality to the components that they wrap.
@@ -30,10 +32,10 @@ Inspired by Redux's nomenclature, the data in a provider's data store is referre
 
 Actions are logically and semantically decoupled from the results they yield. In other words, invoking an action can be thought of as a one-way message or instruction for the data store. Any resulting state changes will materialize as prop changes in state consumers. As such, action functions may only return `void` or `Promise<void>`. This one-way communication restriction makes state management with `@phnq/state` akin to pub/sub.
 
-## Example
+## Examples
 
 #### UIState.ts
-This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update set the accentColor. The provider and consumer, which are returned from `createState`, are exported.
+This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update the accentColor. The provider and consumer, which are returned from `createState`, are exported.
 
 ```ts
 import { createState } from '@phnq/state';
@@ -132,7 +134,7 @@ export default  UIState.consumer(ChangeAccentColor);
 
 #### Container.tsx (updated to include ChangeAccentColor)
 
-This is the same Container component from above, but now it has a few buttons for changing the accent color. Clicking a <ChangeAccentColor /> buttom will update the UIState's accentColor state, which will in-turn trigger a consumers to be re-rendered with the new value.
+This is the same Container component from above, but now it has a few buttons for changing the accent color. Clicking a <ChangeAccentColor /> buttom will update the UIState's accentColor state, which will in-turn trigger consumers to be re-rendered with the new value.
 
 ```tsx
 import React, { FC } from 'react';
