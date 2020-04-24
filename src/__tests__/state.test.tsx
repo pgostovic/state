@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/extend-expect';
-
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import React, { Component, FC } from 'react';
+import React, { Component, ComponentType, FC } from 'react';
 
 import { createState, inject } from '../index';
 
@@ -20,6 +19,7 @@ interface Actions {
   resetState(): void;
   setPerson(person: { firstName?: string; lastName?: string }): void;
   doit(): void;
+  setNumFortyTwo(): void;
 }
 
 const DEFAULT_STATE = {
@@ -35,36 +35,52 @@ let destroyFn: jest.Mock | undefined;
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 createState('test', {}, () => ({}));
 
-const testState = createState<State, Actions>('test', DEFAULT_STATE, ({ getState, setState }) => ({
-  init() {
-    if (initFn) {
-      initFn();
-    }
-  },
+interface With42Props {
+  fortyTwo: number;
+}
 
-  destroy() {
-    if (destroyFn) {
-      destroyFn();
-    }
-  },
+const with42 = <T extends With42Props = With42Props>(Wrapped: ComponentType<T>) =>
+  ((props: T) => <Wrapped {...props} fortyTwo={42} />) as FC<Omit<T, keyof With42Props>>;
 
-  incrementNum() {
-    this.doit();
-    setState({ num: 1 + getState().num });
-  },
+const testState = createState<State, Actions, With42Props>(
+  'test',
+  DEFAULT_STATE,
+  ({ getState, setState, fortyTwo }) => ({
+    init() {
+      if (initFn) {
+        initFn();
+      }
+    },
 
-  resetState() {
-    setState(DEFAULT_STATE);
-  },
+    destroy() {
+      if (destroyFn) {
+        destroyFn();
+      }
+    },
 
-  setPerson(person: { firstName?: string; lastName?: string }): void {
-    setState({ person });
-  },
+    incrementNum() {
+      this.doit();
+      setState({ num: 1 + getState().num });
+    },
 
-  doit(): void {
-    setState({ didit: true });
-  },
-}));
+    resetState() {
+      setState(DEFAULT_STATE);
+    },
+
+    setPerson(person: { firstName?: string; lastName?: string }): void {
+      setState({ person });
+    },
+
+    doit(): void {
+      setState({ didit: true });
+    },
+
+    setNumFortyTwo() {
+      setState({ num: fortyTwo });
+    },
+  }),
+  with42,
+);
 
 @testState.consumer
 class TestConsumer extends Component<State & Actions> {

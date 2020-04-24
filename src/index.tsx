@@ -1,5 +1,5 @@
 import { createLogger } from '@phnq/log';
-import React, { Component, ComponentType, createContext } from 'react';
+import React, { Component, ComponentType, createContext, ReactNode } from 'react';
 
 const log = createLogger('@phnq/state');
 const names = new Set<string>();
@@ -35,12 +35,13 @@ interface GetActionsParams<TState> {
   setState(subState: { [key in keyof TState]?: TState[key] }): Promise<void>;
 }
 
-type VoidActions<T> = Record<keyof T, (...args: any[]) => void | Promise<void>>;
+type VoidActions<T> = Record<keyof T, (...args: never[]) => void | Promise<void>>;
 
-export const createState = <TState, TActions extends VoidActions<TActions>>(
+export const createState = <TState, TActions extends VoidActions<TActions>, TProviderProps = {}>(
   name: string,
   defaultState: TState,
-  getActions: (getActionsParams: GetActionsParams<TState>) => TActions,
+  getActions: (getActionsParams: GetActionsParams<TState> & TProviderProps) => TActions,
+  mapProvider: (Provider: ComponentType<TProviderProps>) => ComponentType = p => p as ComponentType,
 ) => {
   if (names.has(name)) {
     log.warn(
@@ -53,7 +54,7 @@ export const createState = <TState, TActions extends VoidActions<TActions>>(
 
   const { Provider, Consumer } = createContext({});
 
-  class StateProvider extends Component<StateProviderProps> {
+  class StateProvider extends Component<TProviderProps> {
     private consumerCount: number;
     private actions: TActions & {
       init?(): void;
@@ -62,12 +63,13 @@ export const createState = <TState, TActions extends VoidActions<TActions>>(
       _decrementConsumerCount?(): void;
     };
 
-    constructor(props: StateProviderProps) {
+    constructor(props: TProviderProps) {
       super(props);
       providers[name] = this;
       this.consumerCount = 0;
       this.state = defaultState as TState;
       this.actions = getActions({
+        ...props,
         getState: () => ({ ...this.state } as TState),
         setState: (subState): Promise<void> => {
           log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, subState);
@@ -139,10 +141,12 @@ export const createState = <TState, TActions extends VoidActions<TActions>>(
     }
   }
 
-  const provider = ((): any => (Wrapped: ComponentType): Wrapper => (props: any): JSX.Element => (
-    <StateProvider>
+  const MappedProvider = mapProvider(StateProvider);
+
+  const provider = ((): any => (Wrapped: ComponentType): Wrapper => <T extends {}>(props: T): ReactNode => (
+    <MappedProvider>
       <Wrapped {...props} />
-    </StateProvider>
+    </MappedProvider>
   ))();
 
   const map = (mapFn = (s: any): any => s): any =>
@@ -165,7 +169,7 @@ export const createState = <TState, TActions extends VoidActions<TActions>>(
   return { provider, consumer: map(), map };
 };
 
-type Wrapper = (props: any) => JSX.Element;
+type Wrapper = <T extends {}>(props: T) => ReactNode;
 type HOC = (Wrapped: any) => Wrapper;
 
 export const inject = <T extends {}>() => ({} as T);
