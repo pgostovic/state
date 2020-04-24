@@ -55,10 +55,11 @@ export type UIStateProps = State & Actions;
 
 /**
  * Create the state and export the provider and consumer.
- * The createState() function takes 3 arguments:
+ * The createState() function takes 4 arguments:
  * 1) An app-unique domain.
  * 2) The initial state of the data store.
  * 3) A function that returns the actions API.
+ * 4) (optional) a Provider mapping function - discussed below.
  */
 export default createState<State, Actions>(
   'UI',
@@ -189,4 +190,59 @@ export default createState<State, Actions>(
     },
   }),
 );
+```
+
+## Provider Mapping
+The fourth (optional) argument to the `createState()` function is the "provider mapping"
+function. This function provides an opportunity to wrap the state Provider with
+other higher-order components (HOCs) to extend the functionality of action functions.
+There is also a corresponding additional type variable to add the HOC's prop types.
+
+For example, suppose you wanted to use localized strings in an action function using
+[@phnq/i18n](https://www.npmjs.com/package/@phnq/i18n). The @phnq/i18n provides a
+function for retrieving translated strings: `i18ns()`. The `i18ns()` function is
+exposed to a React component as a prop via a HOC. Here's how to bring it into a
+state action function:
+
+```ts
+import { createState } from '@phnq/state';
+import { WithI18nProps, withI18n } from '@phnq/i18n'
+import { Thing, getThings } from 'thing-api';
+
+interface State {
+  things: Thing[];
+}
+
+interface Actions {
+  fetchThings(): Promise<void>;
+}
+
+export type ThingStateProps = State & Actions;
+
+// Add the WithI18nProps type so we can use the i18ns() function.
+export default createState<State, Actions, WithI18nProps>(
+  'Things',
+  {
+    things: [],
+  },
+  ({ setState, i18ns }) => ({
+    async fetchThings() {
+      try {
+        setState({ things: await getThings() });
+      } catch (err) {
+        alert(i18ns('error.generic', { message: err.message }));
+      }
+    },
+  }),
+  Provider => withI18n(Provider), // Wrap the Provider with the withI18n() HOC
+);
+```
+The provider mapping function could be some arbitrary chain of HOCs. In the above
+case there's only one, so instead of the last argument being:
+```ts
+  Provider => withI18n(Provider)
+```
+It could just be:
+```ts
+  withI18n
 ```
