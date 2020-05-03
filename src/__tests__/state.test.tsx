@@ -108,21 +108,51 @@ class TestConsumer extends Component<State & Actions> {
   }
 }
 
-const TestConsumerFC: FC<State & Actions> = testState.consumer(
-  ({ num, incrementNum, resetState, person: { firstName, lastName }, didit }: State & Actions) => (
-    <>
-      <button data-testid="the-button" onClick={() => incrementNum()}>
-        {num}
-      </button>
-      <button data-testid="reset-button" onClick={() => resetState()}>
-        Reset
-      </button>
-      <div data-testid="firstName">{firstName}</div>
-      <div data-testid="lastName">{lastName}</div>
-      <div data-testid="didit">{didit ? 'yes' : 'no'}</div>
-    </>
-  ),
+const TestConsumerFC: FC<State & Actions> = ({
+  num,
+  incrementNum,
+  resetState,
+  person: { firstName, lastName },
+  didit,
+}) => (
+  <>
+    <button data-testid="the-button" onClick={() => incrementNum()}>
+      {num}
+    </button>
+    <button data-testid="reset-button" onClick={() => resetState()}>
+      Reset
+    </button>
+    <div data-testid="firstName">{firstName}</div>
+    <div data-testid="lastName">{lastName}</div>
+    <div data-testid="didit">{didit ? 'yes' : 'no'}</div>
+  </>
 );
+
+const TestConsumerFCWithState = testState.consumer(TestConsumerFC);
+
+const MappedTestConsumerFC: FC<{ mapped: State & Actions }> = ({
+  mapped: {
+    num,
+    incrementNum,
+    resetState,
+    person: { firstName, lastName },
+    didit,
+  },
+}) => (
+  <>
+    <button data-testid="the-button" onClick={() => incrementNum()}>
+      {num}
+    </button>
+    <button data-testid="reset-button" onClick={() => resetState()}>
+      Reset
+    </button>
+    <div data-testid="firstName">{firstName}</div>
+    <div data-testid="lastName">{lastName}</div>
+    <div data-testid="didit">{didit ? 'yes' : 'no'}</div>
+  </>
+);
+
+const MappedTestConsumerFCWithState = testState.map(s => ({ mapped: s }))(MappedTestConsumerFC);
 
 @testState.provider
 class TestProvider extends Component {
@@ -137,7 +167,13 @@ class TestProvider extends Component {
 
 const TestProviderFC: FC = testState.provider(() => (
   <div>
-    <TestConsumerFC {...inject<State & Actions>()} />
+    <TestConsumerFCWithState />
+  </div>
+));
+
+const TestProviderMappedConsumerFC: FC = testState.provider(() => (
+  <div>
+    <MappedTestConsumerFCWithState />
   </div>
 ));
 
@@ -155,6 +191,11 @@ test('default state', () => {
 
 test('default state FC', () => {
   const resultFC = render(<TestProviderFC />);
+  expect(resultFC.getByTestId('the-button')).toHaveTextContent('42');
+});
+
+test('default state Mapped FC', () => {
+  const resultFC = render(<TestProviderMappedConsumerFC />);
   expect(resultFC.getByTestId('the-button')).toHaveTextContent('42');
 });
 
@@ -263,7 +304,7 @@ test('Consumer with no provider FC', () => {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   console.error = () => {};
   try {
-    render(<TestConsumerFC {...inject<State & Actions>()} />);
+    render(<TestConsumerFCWithState {...inject<State & Actions>()} />);
     fail('Should have thrown');
   } catch (err) {
     expect(err.message).toBe('No provider found for "test" state.');
