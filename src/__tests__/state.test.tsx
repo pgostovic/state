@@ -22,13 +22,6 @@ interface Actions {
   setNumFortyTwo(): void;
 }
 
-const DEFAULT_STATE = {
-  num: 42,
-  other: 'stuff',
-  person: {},
-  didit: false,
-};
-
 let initFn: jest.Mock | undefined;
 let destroyFn: jest.Mock | undefined;
 
@@ -44,8 +37,13 @@ const with42 = <T extends With42Props = With42Props>(Wrapped: ComponentType<T>) 
 
 const testState = createState<State, Actions, With42Props>(
   'test',
-  DEFAULT_STATE,
-  ({ getState, setState, fortyTwo }) => ({
+  {
+    num: 42,
+    other: 'stuff',
+    person: {},
+    didit: false,
+  },
+  ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
       if (initFn) {
         initFn();
@@ -64,7 +62,7 @@ const testState = createState<State, Actions, With42Props>(
     },
 
     resetState() {
-      setState(DEFAULT_STATE);
+      resetState();
     },
 
     setPerson(person: { firstName?: string; lastName?: string }): void {
@@ -230,11 +228,11 @@ test('getCombinedState', () => {
 
   fireEvent.click(resetButton);
 
-  expect(window.getCombinedState().test.num).toBe(42);
+  expect(window.getCombinedState<State>().test.num).toBe(42);
 
   fireEvent.click(theButton);
 
-  expect(window.getCombinedState().test.num).toBe(43);
+  expect(window.getCombinedState<State>().test.num).toBe(43);
 });
 
 test('getCombinedState FC', () => {
@@ -244,11 +242,11 @@ test('getCombinedState FC', () => {
 
   fireEvent.click(resetButton);
 
-  expect(window.getCombinedState().test.num).toBe(42);
+  expect(window.getCombinedState<State>().test.num).toBe(42);
 
   fireEvent.click(theButton);
 
-  expect(window.getCombinedState().test.num).toBe(43);
+  expect(window.getCombinedState<State>().test.num).toBe(43);
 });
 
 test('init gets called', () => {
@@ -311,4 +309,36 @@ test('Consumer with no provider FC', () => {
   } finally {
     console.error = conErr;
   }
+});
+
+test('reset state', () => {
+  const result = render(<TestProvider />);
+  const button = result.getByTestId('the-button');
+  const didit = result.getByTestId('didit');
+  const resetButton = result.getByTestId('reset-button');
+
+  expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
+  expect(didit).toHaveTextContent('yes');
+  fireEvent.click(resetButton);
+  expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
+});
+
+test('reset state FC', () => {
+  const result = render(<TestProviderFC />);
+  const button = result.getByTestId('the-button');
+  const didit = result.getByTestId('didit');
+  const resetButton = result.getByTestId('reset-button');
+
+  expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
+  expect(didit).toHaveTextContent('yes');
+  fireEvent.click(resetButton);
+  expect(button).toHaveTextContent('42');
+  expect(didit).toHaveTextContent('no');
 });

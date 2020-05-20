@@ -7,7 +7,7 @@ const providers: { [key: string]: Component<StateProviderProps> } = {};
 
 declare global {
   interface Window {
-    getCombinedState: () => any;
+    getCombinedState: <T = unknown>() => { [key: string]: T };
   }
 }
 
@@ -16,7 +16,7 @@ if (!window.getCombinedState) {
     Object.keys(providers).reduce(
       (states, k) => ({
         ...states,
-        [k]: (providers[k] as any).state,
+        [k]: providers[k].state,
       }),
       {},
     );
@@ -32,7 +32,8 @@ interface StateConsumerProps {
 
 interface GetActionsParams<TState> {
   getState(): TState;
-  setState(subState: { [key in keyof TState]?: TState[key] }): Promise<void>;
+  setState(subState: Partial<TState>): Promise<void>;
+  resetState(): Promise<void>;
 }
 
 type VoidActions<T> = Record<keyof T, (...args: never[]) => void | Promise<void>>;
@@ -67,20 +68,21 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
       super(props);
       providers[name] = this;
       this.consumerCount = 0;
-      this.state = defaultState as TState;
-      this.actions = getActions({
-        ...props,
-        getState: () => ({ ...this.state } as TState),
-        setState: (subState): Promise<void> => {
-          log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, subState);
-          let res: (() => void) | undefined;
-          const p = new Promise<void>(r => {
-            res = r;
-          });
-          this.setState(subState, res);
-          return p;
-        },
-      });
+      this.state = { ...defaultState };
+
+      const getState = () => ({ ...this.state } as TState);
+      const setState = (subState: Partial<TState>): Promise<void> => {
+        log('%s(%d) - %o', name.toUpperCase(), this.consumerCount, subState);
+        let res: (() => void) | undefined;
+        const p = new Promise<void>(r => {
+          res = r;
+        });
+        this.setState(subState, res);
+        return p;
+      };
+      const resetState = () => setState(defaultState);
+
+      this.actions = getActions({ ...props, getState, setState, resetState });
 
       this.actions._incrementConsumerCount = () => {
         this.consumerCount += 1;
