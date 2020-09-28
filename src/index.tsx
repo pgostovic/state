@@ -1,5 +1,5 @@
 import { createLogger } from '@phnq/log';
-import React, { Component, ComponentType, createContext, ReactNode } from 'react';
+import React, { Component, ComponentType, createContext, ReactNode, useContext } from 'react';
 
 const log = createLogger('@phnq/state');
 const names = new Set<string>();
@@ -53,7 +53,9 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
   log('created state %s', name);
   names.add(name);
 
-  const { Provider, Consumer } = createContext({});
+  const context = createContext({});
+
+  const { Provider, Consumer } = context;
 
   class StateProvider extends Component<TProviderProps> {
     private consumerCount: number;
@@ -168,7 +170,7 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
       </Consumer>
     ))();
 
-  return { provider, consumer: map(), map };
+  return { provider, consumer: map(), map, useState: () => useContext(context) as TState & TActions };
 };
 
 type Wrapper = <T extends {}>(props: T) => ReactNode;

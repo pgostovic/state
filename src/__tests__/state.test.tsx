@@ -175,6 +175,21 @@ const TestProviderMappedConsumerFC: FC = testState.provider(() => (
   </div>
 ));
 
+const TestUseState: FC = () => {
+  const { num, incrementNum } = testState.useState();
+  return (
+    <button data-testid="the-button" onClick={() => incrementNum()}>
+      {num}
+    </button>
+  );
+};
+
+const TestUseStateProvider: FC = testState.provider(() => (
+  <div>
+    <TestUseState />
+  </div>
+));
+
 beforeEach(() => {
   initFn = undefined;
   destroyFn = undefined;
@@ -341,4 +356,12 @@ test('reset state FC', () => {
   fireEvent.click(resetButton);
   expect(button).toHaveTextContent('42');
   expect(didit).toHaveTextContent('no');
+});
+
+test('useState', () => {
+  const result = render(<TestUseStateProvider />);
+  const button = result.getByTestId('the-button');
+  expect(button).toHaveTextContent('42');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
 });
