@@ -38,10 +38,18 @@ interface GetActionsParams<TState> {
 
 type VoidActions<T> = Record<keyof T, (...args: never[]) => void | Promise<void>>;
 
+type Actions<T> = T & {
+  init?(): void;
+  destroy?(): void;
+  onError?(action: keyof Actions<T>, error: Error): void;
+  _incrementConsumerCount?(): void;
+  _decrementConsumerCount?(): void;
+};
+
 export const createState = <TState, TActions extends VoidActions<TActions>, TProviderProps = {}>(
   name: string,
   defaultState: TState,
-  getActions: (getActionsParams: GetActionsParams<TState> & TProviderProps) => TActions,
+  getActions: (getActionsParams: GetActionsParams<TState> & TProviderProps) => Actions<TActions>,
   mapProvider: (Provider: ComponentType<TProviderProps>) => ComponentType = p => p as ComponentType,
 ) => {
   if (names.has(name)) {
@@ -59,12 +67,7 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
 
   class StateProvider extends Component<TProviderProps> {
     private consumerCount: number;
-    private actions: TActions & {
-      init?(): void;
-      destroy?(): void;
-      _incrementConsumerCount?(): void;
-      _decrementConsumerCount?(): void;
-    };
+    private actions: Actions<TActions>;
 
     constructor(props: TProviderProps) {
       super(props);
@@ -84,22 +87,35 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
       };
       const resetState = () => setState(defaultState);
 
-      this.actions = getActions({ ...props, getState, setState, resetState });
+      const actions = getActions({ ...props, getState, setState, resetState }) as Actions<TActions>;
 
-      this.actions._incrementConsumerCount = () => {
+      actions._incrementConsumerCount = () => {
         this.consumerCount += 1;
       };
 
-      this.actions._decrementConsumerCount = () => {
+      actions._decrementConsumerCount = () => {
         this.consumerCount -= 1;
       };
 
-      const actions = this.actions as { [key: string]: () => void };
-      Object.keys(actions).forEach(k => {
-        actions[k] = actions[k].bind(this.actions);
+      const onError = actions.onError;
+
+      const actionNames = [...Object.keys(actions)] as (keyof Actions<TActions>)[];
+      actionNames.forEach(k => {
+        actions[k] = actions[k].bind(actions) as any;
+        const action = actions[k] as any;
+
+        if (onError && k !== 'onError') {
+          actions[k] = (async (...args: never[]): Promise<void> => {
+            try {
+              return await action(args);
+            } catch (err) {
+              onError(k, err);
+            }
+          }) as any;
+        }
       });
 
-      this.actions = Object.freeze(this.actions);
+      this.actions = Object.freeze(actions);
     }
 
     public componentDidMount() {

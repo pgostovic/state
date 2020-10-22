@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/extend-expect';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
 import React, { Component, ComponentType, FC } from 'react';
 
 import { createState, inject } from '../index';
+
+const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
 
 interface State {
   num: number;
@@ -12,6 +14,8 @@ interface State {
     lastName?: string;
   };
   didit: boolean;
+  errorAction?: string;
+  errorMessage?: string;
 }
 
 interface Actions {
@@ -20,6 +24,8 @@ interface Actions {
   setPerson(person: { firstName?: string; lastName?: string }): void;
   doit(): void;
   setNumFortyTwo(): void;
+  triggerAnError(): void;
+  triggerAnAsyncError(): void;
 }
 
 let initFn: jest.Mock | undefined;
@@ -42,6 +48,8 @@ const testState = createState<State, Actions, With42Props>(
     other: 'stuff',
     person: {},
     didit: false,
+    errorAction: undefined,
+    errorMessage: undefined,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
@@ -54,6 +62,10 @@ const testState = createState<State, Actions, With42Props>(
       if (destroyFn) {
         destroyFn();
       }
+    },
+
+    onError(action, err) {
+      setState({ errorAction: action, errorMessage: err.message });
     },
 
     incrementNum() {
@@ -75,6 +87,15 @@ const testState = createState<State, Actions, With42Props>(
 
     setNumFortyTwo() {
       setState({ num: fortyTwo });
+    },
+
+    triggerAnError() {
+      throw new Error('state error');
+    },
+
+    async triggerAnAsyncError() {
+      await sleep(200);
+      throw new Error('async state error');
     },
   }),
   with42,
@@ -176,11 +197,21 @@ const TestProviderMappedConsumerFC: FC = testState.provider(() => (
 ));
 
 const TestUseState: FC = () => {
-  const { num, incrementNum } = testState.useState();
+  const { num, incrementNum, triggerAnError, triggerAnAsyncError, errorAction, errorMessage } = testState.useState();
   return (
-    <button data-testid="the-button" onClick={() => incrementNum()}>
-      {num}
-    </button>
+    <>
+      {errorAction && <div data-testid="error-action">{errorAction}</div>}
+      {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
+      <button data-testid="the-button" onClick={() => incrementNum()}>
+        {num}
+      </button>
+      <button data-testid="error-button" onClick={() => triggerAnError()}>
+        Do Error
+      </button>
+      <button data-testid="async-error-button" onClick={() => triggerAnAsyncError()}>
+        Do Async Error
+      </button>
+    </>
   );
 };
 
@@ -364,4 +395,28 @@ test('useState', () => {
   expect(button).toHaveTextContent('42');
   fireEvent.click(button);
   expect(button).toHaveTextContent('43');
+});
+
+test('error catch all', async () => {
+  const result = render(<TestUseStateProvider />);
+  const button = result.getByTestId('error-button');
+  fireEvent.click(button);
+
+  const errorActionElement = await waitForElement(() => result.getByTestId('error-action'));
+  expect(errorActionElement).toHaveTextContent('triggerAnError');
+
+  const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
+  expect(errorMessageElement).toHaveTextContent('state error');
+});
+
+test('error catch all async', async () => {
+  const result = render(<TestUseStateProvider />);
+  const button = result.getByTestId('async-error-button');
+  fireEvent.click(button);
+
+  const errorActionElement = await waitForElement(() => result.getByTestId('error-action'));
+  expect(errorActionElement).toHaveTextContent('triggerAnAsyncError');
+
+  const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
+  expect(errorMessageElement).toHaveTextContent('async state error');
 });
