@@ -105,13 +105,19 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
         const action = actions[k] as any;
 
         if (onError && k !== 'onError') {
-          actions[k] = (async (...args: never[]): Promise<void> => {
-            try {
-              return await action(args);
-            } catch (err) {
-              onError(k, err);
-            }
-          }) as any;
+          actions[k] = ((...args: never[]): Promise<void> =>
+            new Promise(resolve => {
+              try {
+                const result = action(args);
+                if (result instanceof Promise) {
+                  result.then(resolve).catch(err => onError(k, err));
+                } else {
+                  resolve(result);
+                }
+              } catch (err) {
+                onError(k, err);
+              }
+            })) as any;
         }
       });
 
