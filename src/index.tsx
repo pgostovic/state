@@ -36,15 +36,19 @@ interface GetActionsParams<TState> {
   resetState(): Promise<void>;
 }
 
-type VoidActions<T> = Record<keyof T, (...args: never[]) => void | Promise<void>>;
+type ActionFunction = (...args: never[]) => void | Promise<void>;
 
-type Actions<T> = T & {
+type VoidActions<T> = Record<keyof T, ActionFunction>;
+
+interface ImplicitActions<T> {
   init?(): void;
   destroy?(): void;
   onError?(error: unknown, action: keyof Actions<T>): void;
   _incrementConsumerCount?(): void;
   _decrementConsumerCount?(): void;
-};
+}
+
+type Actions<T> = T & ImplicitActions<T>;
 
 export const createState = <TState, TActions extends VoidActions<TActions>, TProviderProps = {}>(
   name: string,
@@ -102,13 +106,13 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
       const actionNames = [...Object.keys(actions)] as (keyof Actions<TActions>)[];
       actionNames.forEach(k => {
         actions[k] = actions[k].bind(actions) as any;
-        const action = actions[k] as any;
+        const action = actions[k] as ActionFunction;
 
         if (onError && k !== 'onError') {
           actions[k] = ((...args: never[]): Promise<void> =>
             new Promise(resolve => {
               try {
-                const result = action(args);
+                const result = action.apply(actions, args);
                 if (result instanceof Promise) {
                   result.then(resolve).catch(err => onError(err, k));
                 } else {
