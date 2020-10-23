@@ -41,7 +41,7 @@ type VoidActions<T> = Record<keyof T, (...args: never[]) => void | Promise<void>
 type Actions<T> = T & {
   init?(): void;
   destroy?(): void;
-  onError?(action: keyof Actions<T>, error: Error): void;
+  onError?(error: unknown, action: keyof Actions<T>): void;
   _incrementConsumerCount?(): void;
   _decrementConsumerCount?(): void;
 };
@@ -110,12 +110,12 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
               try {
                 const result = action(args);
                 if (result instanceof Promise) {
-                  result.then(resolve).catch(err => onError(k, err));
+                  result.then(resolve).catch(err => onError(err, k));
                 } else {
                   resolve(result);
                 }
               } catch (err) {
-                onError(k, err);
+                onError(err, k);
               }
             })) as any;
         }

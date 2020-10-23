@@ -64,8 +64,10 @@ const testState = createState<State, Actions, With42Props>(
       }
     },
 
-    onError(action, err) {
-      setState({ errorAction: action, errorMessage: err.message });
+    onError(err, action) {
+      if (err instanceof Error) {
+        setState({ errorAction: action, errorMessage: err.message });
+      }
     },
 
     incrementNum() {
