@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/extend-expect';
 import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
-import React, { Component, ComponentType, FC } from 'react';
+import React, { Component, ComponentType, FC, useRef } from 'react';
 
 import { createState, inject } from '../index';
 
@@ -16,6 +16,7 @@ interface State {
   didit: boolean;
   errorAction?: string;
   errorMessage?: string;
+  isNum43?: boolean;
 }
 
 interface Actions {
@@ -50,6 +51,7 @@ const testState = createState<State, Actions, With42Props>(
     didit: false,
     errorAction: undefined,
     errorMessage: undefined,
+    isNum43: ({ num }) => num === 43,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
@@ -199,7 +201,20 @@ const TestProviderMappedConsumerFC: FC = testState.provider(() => (
 ));
 
 const TestUseState: FC = () => {
-  const { num, incrementNum, triggerAnError, triggerAnAsyncError, errorAction, errorMessage } = testState.useState();
+  const {
+    num,
+    incrementNum,
+    triggerAnError,
+    triggerAnAsyncError,
+    errorAction,
+    errorMessage,
+    isNum43,
+  } = testState.useState();
+
+  const numRendersRef = useRef(0);
+
+  numRendersRef.current += 1;
+
   return (
     <>
       {errorAction && <div data-testid="error-action">{errorAction}</div>}
@@ -213,6 +228,8 @@ const TestUseState: FC = () => {
       <button data-testid="async-error-button" onClick={() => triggerAnAsyncError()}>
         Do Async Error
       </button>
+      <div data-testid="is-num-43">{String(isNum43)}</div>
+      <div data-testid="num-renders">{numRendersRef.current}</div>
     </>
   );
 };
@@ -421,4 +438,15 @@ test('error catch all async', async () => {
 
   const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
   expect(errorMessageElement).toHaveTextContent('async state error');
+});
+
+test('derived state', () => {
+  const result = render(<TestUseStateProvider />);
+  const button = result.getByTestId('the-button');
+  const isNum43 = result.getByTestId('is-num-43');
+  expect(button).toHaveTextContent('42');
+  expect(isNum43).toHaveTextContent('false');
+  fireEvent.click(button);
+  expect(button).toHaveTextContent('43');
+  expect(isNum43).toHaveTextContent('true');
 });

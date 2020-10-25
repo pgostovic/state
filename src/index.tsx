@@ -50,9 +50,13 @@ interface ImplicitActions<T> {
 
 type Actions<T> = T & ImplicitActions<T>;
 
+type State<T> = {
+  [K in keyof T]: T[K] | ((state: Omit<T, K>) => T[K]);
+} & { [key: string]: unknown };
+
 export const createState = <TState, TActions extends VoidActions<TActions>, TProviderProps = {}>(
   name: string,
-  defaultState: TState,
+  defaultState: State<TState>,
   getActions: (getActionsParams: GetActionsParams<TState> & TProviderProps) => Actions<TActions>,
   mapProvider: (Provider: ComponentType<TProviderProps>) => ComponentType = p => p as ComponentType,
 ) => {
@@ -69,6 +73,24 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
 
   const { Provider, Consumer } = context;
 
+  const stateDerivers = Object.keys(defaultState).reduce(
+    (derivers, key) =>
+      typeof defaultState[key] === 'function'
+        ? [...derivers, { key, derive: defaultState[key] as Function }]
+        : derivers,
+    [] as { key: string; derive: Function }[],
+  );
+
+  const derivedProperties = stateDerivers.map(({ key }) => key);
+
+  const initialState = Object.keys(defaultState).reduce(
+    (s, key) =>
+      typeof defaultState[key] === 'function'
+        ? { ...s, [key]: (defaultState[key] as Function)(defaultState) }
+        : { ...s, [key]: defaultState[key] },
+    {} as Partial<TState>,
+  );
+
   class StateProvider extends Component<TProviderProps> {
     private consumerCount: number;
     private actions: Actions<TActions>;
@@ -77,7 +99,7 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
       super(props);
       providers[name] = this;
       this.consumerCount = 0;
-      this.state = { ...defaultState };
+      this.state = { ...initialState };
 
       const getState = () => ({ ...this.state } as TState);
       const setState = (subState: Partial<TState>): Promise<void> => {
@@ -86,10 +108,21 @@ export const createState = <TState, TActions extends VoidActions<TActions>, TPro
         const p = new Promise<void>(r => {
           res = r;
         });
-        this.setState(subState, res);
+
+        if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
+          throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+        }
+
+        const derivedState = stateDerivers.reduce(
+          (d, { key, derive }) => ({ ...d, [key]: derive({ ...this.state, ...subState }) }),
+          {} as Partial<TState>,
+        );
+
+        this.setState({ ...subState, ...derivedState }, res);
         return p;
       };
-      const resetState = () => setState(defaultState);
+
+      const resetState = () => setState(initialState);
 
       const actions = getActions({ ...props, getState, setState, resetState }) as Actions<TActions>;
 

@@ -9,8 +9,8 @@
     "postdist": "rimraf dist/__tests__;  ts-node scripts/postdist",
     "clean": "rimraf dist",
     "test": "jest src --coverage",
-    "release:patch": "npm version patch; npm run dist; cd dist; npm publish",
-    "release:minor": "npm version minor; npm run dist; cd dist; npm publish"
+    "release:patch": "npm run clean; npm version patch; npm run dist; cd dist; npm publish",
+    "release:minor": "npm run clean; npm version minor; npm run dist; cd dist; npm publish"
   },
   "repository": {
     "type": "git",
