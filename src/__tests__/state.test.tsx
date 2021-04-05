@@ -79,6 +79,9 @@ test('state change with action', () => {
   expect(numElmnt).toHaveTextContent('2');
 
   expect(numRendersElmnt).toHaveTextContent('2');
+
+  fireEvent.click(button);
+  expect(numElmnt).toHaveTextContent('3');
 });
 
 test('state change with action (via consumer)', () => {
