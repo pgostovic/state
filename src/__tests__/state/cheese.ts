@@ -1,4 +1,4 @@
-import { createState } from '../../v2';
+import { createState } from '../..';
 
 interface State {
   cheese: 'Cheddar' | 'Brie' | 'Gouda';

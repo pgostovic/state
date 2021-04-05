@@ -1,4 +1,4 @@
-import { createState } from '../../v2';
+import { createState } from '../..';
 import cheeseState from './cheese';
 import with42, { With42Props } from './with42';
 
