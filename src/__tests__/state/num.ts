@@ -4,11 +4,15 @@ import with42, { With42Props } from './with42';
 
 interface State {
   num: number;
+  numPlus1: number;
 }
 
 interface Actions {
   incrementNum(): void;
+  setNum42(): void;
 }
+
+export type NumStateProps = State & Actions;
 
 let initCallListener: (() => void) | undefined;
 let destroyCallListener: (() => void) | undefined;
@@ -19,15 +23,14 @@ export const onDestroyCall = (listener: () => void) => (destroyCallListener = li
 export default createState<State, Actions, With42Props>(
   'Num',
   {
-    num: 42,
+    num: 1,
+    numPlus1: ({ num }) => num + 1,
   },
   ({ getState, setState, fortyTwo }) => ({
     init() {
       if (initCallListener) {
         initCallListener();
       }
-
-      console.log('INIT FT', fortyTwo);
     },
 
     destroy() {
@@ -48,6 +51,10 @@ export default createState<State, Actions, With42Props>(
       }
 
       setState({ num: num + 1 });
+    },
+
+    setNum42() {
+      setState({ num: fortyTwo });
     },
   }),
   with42,

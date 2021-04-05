@@ -19,6 +19,7 @@
     "@typescript-eslint/explicit-function-return-type": "off",
     "react/display-name": "off",
     "react/prop-types": "off",
+    "@typescript-eslint/no-use-before-define": "off",
     "simple-import-sort/sort": "error"
   },
   "settings": {

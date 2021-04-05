@@ -10,7 +10,7 @@ import React, {
   useState,
 } from 'react';
 
-import { Actions, GetActionsParams, State } from '.';
+import { ActionFunction, Actions, GetActionsParams, State } from '.';
 
 const log = createLogger('@phnq/state');
 
@@ -123,8 +123,6 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
   return <Provider value={{ ...underlyingState, ...actions, isPhnqState: true }}>{children}</Provider>;
 }
-
-type ActionFunction = (...args: never[]) => void | Promise<void>;
 
 const processDefaultState = <S,>(defaultState: State<S>) => ({
   stateDerivers: Object.keys(defaultState).reduce(

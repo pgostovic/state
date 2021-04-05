@@ -2,8 +2,8 @@ import '@testing-library/jest-dom/extend-expect';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import React, { FC, useRef } from 'react';
 
-import cheeseState from './state/cheese';
-import numState, { onDestroyCall, onInitCall } from './state/num';
+import cheeseState, { CheeseStateProps } from './state/cheese';
+import numState, { NumStateProps, onDestroyCall, onInitCall } from './state/num';
 
 const RootWithProvider: FC = cheeseState.provider(numState.provider(({ children }) => <>{children}</>));
 
@@ -14,7 +14,7 @@ onInitCall(() => (numInitCalls += 1));
 onDestroyCall(() => (numDestroyCalls += 1));
 
 const TestComponent: FC = () => {
-  const { num, incrementNum } = numState.useState();
+  const { num, numPlus1, incrementNum, setNum42 } = numState.useState();
   const { cheese, setCheese } = cheeseState.useState();
   const numRenders = useRef(0);
 
@@ -23,6 +23,7 @@ const TestComponent: FC = () => {
   return (
     <div>
       <div data-testid="num">{num}</div>
+      <div data-testid="numPlus1">{numPlus1}</div>
       <div data-testid="cheese">{cheese}</div>
       <div data-testid="numRenders">{numRenders.current}</div>
       <button data-testid="inc-button" onClick={() => incrementNum()}>
@@ -31,9 +32,25 @@ const TestComponent: FC = () => {
       <button data-testid="reset-cheese" onClick={() => setCheese('Cheddar')}>
         Reset Cheese
       </button>
+      <button data-testid="set-42" onClick={() => setNum42()}>
+        Make it 42
+      </button>
     </div>
   );
 };
+
+const TestComponentAndConsumer = cheeseState.consumer(
+  numState.consumer(({ num, incrementNum }: CheeseStateProps & NumStateProps) => {
+    return (
+      <div>
+        <div data-testid="num">{num}</div>
+        <button data-testid="inc-button" onClick={() => incrementNum()}>
+          Increment Num
+        </button>
+      </div>
+    );
+  }),
+);
 
 test('default state', () => {
   const result = render(
@@ -42,7 +59,7 @@ test('default state', () => {
     </RootWithProvider>,
   );
   const numElmnt = result.getByTestId('num');
-  expect(numElmnt).toHaveTextContent('42');
+  expect(numElmnt).toHaveTextContent('1');
 });
 
 test('state change with action', () => {
@@ -55,13 +72,28 @@ test('state change with action', () => {
   const numRendersElmnt = result.getByTestId('numRenders');
   const button = result.getByTestId('inc-button');
 
-  expect(numElmnt).toHaveTextContent('42');
+  expect(numElmnt).toHaveTextContent('1');
   expect(numRendersElmnt).toHaveTextContent('1');
 
   fireEvent.click(button);
-  expect(numElmnt).toHaveTextContent('43');
+  expect(numElmnt).toHaveTextContent('2');
 
   expect(numRendersElmnt).toHaveTextContent('2');
+});
+
+test('state change with action (via consumer)', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponentAndConsumer />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const button = result.getByTestId('inc-button');
+
+  expect(numElmnt).toHaveTextContent('1');
+
+  fireEvent.click(button);
+  expect(numElmnt).toHaveTextContent('2');
 });
 
 test('Setting the same value does not yield render', () => {
@@ -103,4 +135,39 @@ test('lifecycle actions get called', () => {
   const numDestroyCallsC = numDestroyCalls;
 
   expect(numDestroyCallsC - numDestroyCallsB).toBe(1);
+});
+
+test('provider mapping', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const button = result.getByTestId('set-42');
+
+  expect(numElmnt).toHaveTextContent('1');
+
+  fireEvent.click(button);
+
+  expect(numElmnt).toHaveTextContent('42');
+});
+
+test('derived state', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const numPlus1Elmnt = result.getByTestId('numPlus1');
+  const button = result.getByTestId('set-42');
+
+  expect(numElmnt).toHaveTextContent('1');
+  expect(numPlus1Elmnt).toHaveTextContent('2');
+
+  fireEvent.click(button);
+
+  expect(numElmnt).toHaveTextContent('42');
+  expect(numPlus1Elmnt).toHaveTextContent('43');
 });

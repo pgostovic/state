@@ -14,7 +14,7 @@ export interface ImplicitActions<A> {
 
 export type Actions<A> = A & ImplicitActions<A>;
 
-type ActionFunction = (...args: never[]) => void | Promise<void>;
+export type ActionFunction = (...args: never[]) => void | Promise<void>;
 
 type VoidActions<T> = Record<keyof T, ActionFunction>;
 
@@ -22,6 +22,18 @@ export interface GetActionsParams<S> {
   getState(): S;
   setState(subState: Partial<S>): Promise<void>;
   resetState(): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    getCombinedStateX: () => { [key: string]: unknown };
+  }
+}
+
+const combinedState: { [key: string]: unknown } = {};
+
+if (!window.getCombinedStateX) {
+  window.getCombinedStateX = () => combinedState;
 }
 
 export const createState = <S, A extends VoidActions<A>, P = {}>(
@@ -44,11 +56,20 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
       context={context}
       defaultState={defaultState}
       getActions={getActions}
-      onChange={s => (state = s)}
+      onChange={s => {
+        state = s;
+        combinedState[name] = state;
+      }}
     >
       <Wrapped {...props} />
     </MappedProvider>
   );
 
-  return { provider, getState: () => state, useState: () => useContext(context) as S & A };
+  const { Consumer } = context;
+
+  const consumer = (Wrapped: ComponentType<any>) => <T extends {}>(props: T) => (
+    <Consumer>{state => <Wrapped {...props} {...state} />}</Consumer>
+  );
+
+  return { provider, consumer, getState: () => state, useState: () => useContext(context) as S & A };
 };
