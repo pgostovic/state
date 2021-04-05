@@ -67,6 +67,7 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
 
   const { Consumer } = context;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const consumer = (Wrapped: ComponentType<any>) => <T extends {}>(props: T) => (
     <Consumer>{state => <Wrapped {...props} {...state} />}</Consumer>
   );
