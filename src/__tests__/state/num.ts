@@ -1,5 +1,6 @@
 import { createState } from '../../v2';
 import cheeseState from './cheese';
+import with42, { With42Props } from './with42';
 
 interface State {
   num: number;
@@ -15,16 +16,18 @@ let destroyCallListener: (() => void) | undefined;
 export const onInitCall = (listener: () => void) => (initCallListener = listener);
 export const onDestroyCall = (listener: () => void) => (destroyCallListener = listener);
 
-export default createState<State, Actions>(
+export default createState<State, Actions, With42Props>(
   'Num',
   {
     num: 42,
   },
-  ({ getState, setState }) => ({
+  ({ getState, setState, fortyTwo }) => ({
     init() {
       if (initCallListener) {
         initCallListener();
       }
+
+      console.log('INIT FT', fortyTwo);
     },
 
     destroy() {
@@ -47,4 +50,5 @@ export default createState<State, Actions>(
       setState({ num: num + 1 });
     },
   }),
+  with42,
 );

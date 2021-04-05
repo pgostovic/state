@@ -1,19 +1,30 @@
 import { createLogger } from '@phnq/log';
-import React, { Context, PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  Context,
+  PropsWithChildren,
+  ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { Actions, GetActionsParams, State } from '.';
 
 const log = createLogger('@phnq/state');
 
-interface Props<S, A> {
+interface Props<S, A, P> {
   name: string;
   context: Context<Partial<State<S> & Actions<A>>>;
   defaultState: State<S>;
-  getActions: (getActionsParams: GetActionsParams<S>) => Actions<A>;
+  getActions: (getActionsParams: GetActionsParams<S> & P) => Actions<A>;
   onChange(state: S & A): void;
 }
 
-function StateProvider<S, A>(props: PropsWithChildren<Props<S, A>>) {
+export type StateProviderType<S, A, P> = (props: PropsWithChildren<Props<S, A, P>>) => ReactElement;
+
+function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
   const {
     name,
     context: { Provider },
@@ -71,7 +82,7 @@ function StateProvider<S, A>(props: PropsWithChildren<Props<S, A>>) {
   });
 
   const actions = useMemo(() => {
-    const actions = getActions({ getState, setState, resetState });
+    const actions = getActions({ ...props, getState, setState, resetState });
     const onError = actions.onError;
 
     const actionNames = [...Object.keys(actions)] as (keyof Actions<A>)[];
@@ -91,7 +102,7 @@ function StateProvider<S, A>(props: PropsWithChildren<Props<S, A>>) {
             } catch (err) {
               onError(err, k);
             }
-          })) as any;
+          })) as never;
       }
     });
     return actions;

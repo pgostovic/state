@@ -1,6 +1,6 @@
-import React, { ComponentType, createContext, useContext } from 'react';
+import React, { ComponentType, createContext, ReactElement, useContext } from 'react';
 
-import StateProvider from './StateProvider';
+import StateProvider, { StateProviderType } from './StateProvider';
 
 export type State<S> = {
   [K in keyof S]: S[K] | ((state: Omit<S, K>) => S[K]);
@@ -24,17 +24,22 @@ export interface GetActionsParams<S> {
   resetState(): Promise<void>;
 }
 
-export const createState = <S, A extends VoidActions<A>>(
+export const createState = <S, A extends VoidActions<A>, P = {}>(
   name: string,
   defaultState: State<S>,
-  getActions: (getActionsParams: GetActionsParams<S>) => Actions<A>,
+  getActions: (getActionsParams: GetActionsParams<S> & P) => Actions<A>,
+  mapProvider?: (p: ComponentType<P>) => ComponentType,
 ) => {
   const context = createContext<Partial<State<S> & Actions<A>>>({});
 
   let state: S & A;
 
+  const MappedProvider = (mapProvider
+    ? mapProvider(StateProvider as () => ReactElement)
+    : StateProvider) as StateProviderType<S, A, P>;
+
   const provider = (Wrapped: ComponentType) => <T extends {}>(props: T) => (
-    <StateProvider<S, A>
+    <MappedProvider
       name={name}
       context={context}
       defaultState={defaultState}
@@ -42,7 +47,7 @@ export const createState = <S, A extends VoidActions<A>>(
       onChange={s => (state = s)}
     >
       <Wrapped {...props} />
-    </StateProvider>
+    </MappedProvider>
   );
 
   return { provider, getState: () => state, useState: () => useContext(context) as S & A };
