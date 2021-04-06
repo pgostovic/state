@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/extend-expect';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
 import React, { FC, useRef } from 'react';
 
 import cheeseState, { CheeseStateProps } from './state/cheese';
@@ -15,7 +15,7 @@ onDestroyCall(() => (numDestroyCalls += 1));
 
 const TestComponent: FC = () => {
   const { num, numPlus1, incrementNum, setNum42 } = numState.useState();
-  const { cheese, setCheese } = cheeseState.useState();
+  const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage } = cheeseState.useState();
   const numRenders = useRef(0);
 
   numRenders.current += 1;
@@ -26,6 +26,8 @@ const TestComponent: FC = () => {
       <div data-testid="numPlus1">{numPlus1}</div>
       <div data-testid="cheese">{cheese}</div>
       <div data-testid="numRenders">{numRenders.current}</div>
+      {errorAction && <div data-testid="error-action">{errorAction}</div>}
+      {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
       <button data-testid="inc-button" onClick={() => incrementNum()}>
         Increment Num
       </button>
@@ -34,6 +36,12 @@ const TestComponent: FC = () => {
       </button>
       <button data-testid="set-42" onClick={() => setNum42()}>
         Make it 42
+      </button>
+      <button data-testid="trigger-error" onClick={() => triggerAnError()}>
+        Trigger Error
+      </button>
+      <button data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
+        Trigger Async Error
       </button>
     </div>
   );
@@ -173,4 +181,36 @@ test('derived state', () => {
 
   expect(numElmnt).toHaveTextContent('42');
   expect(numPlus1Elmnt).toHaveTextContent('43');
+});
+
+test('error catch all', async () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const button = result.getByTestId('trigger-error');
+  fireEvent.click(button);
+
+  const errorActionElement = await waitForElement(() => result.getByTestId('error-action'));
+  expect(errorActionElement).toHaveTextContent('triggerAnError');
+
+  const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
+  expect(errorMessageElement).toHaveTextContent('state error');
+});
+
+test('error catch all async', async () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const button = result.getByTestId('trigger-async-error');
+  fireEvent.click(button);
+
+  const errorActionElement = await waitForElement(() => result.getByTestId('error-action'));
+  expect(errorActionElement).toHaveTextContent('triggerAnAsyncError');
+
+  const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
+  expect(errorMessageElement).toHaveTextContent('async state error');
 });

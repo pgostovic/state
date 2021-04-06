@@ -38,41 +38,39 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
   const { stateDerivers, initialState } = useMemo(() => processDefaultState(defaultState), [defaultState]);
 
-  const [underlyingState, setUnderlyingState] = useState<S>(initialState);
+  const stateRef = useRef<S>(initialState);
+
+  const [, render] = useState(false);
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
 
-  const getState = () => underlyingState;
+  const getState = () => stateRef.current;
 
-  const setState = useCallback(
-    (subState: Partial<S>): Promise<void> => {
-      log('%s - %o', name.toUpperCase(), subState);
-      const p = new Promise<void>(r => {
-        resQ.current.push(r);
-      });
+  const setState = useCallback((subState: Partial<S>): Promise<void> => {
+    log('%s - %o', name.toUpperCase(), subState);
+    const p = new Promise<void>(r => {
+      resQ.current.push(r);
+    });
 
-      if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
-        throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
-      }
+    if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
+      throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+    }
 
-      const derivedState = stateDerivers.reduce(
-        (d, { key, derive }) => ({ ...d, [key]: derive({ ...underlyingState, ...subState }) }),
-        {} as Partial<S>,
-      );
+    const derivedState = stateDerivers.reduce(
+      (d, { key, derive }) => ({ ...d, [key]: derive({ ...stateRef.current, ...subState }) }),
+      {} as Partial<S>,
+    );
 
-      const deltaState = { ...subState, ...derivedState };
+    const deltaState = { ...subState, ...derivedState };
 
-      setUnderlyingState(uState => {
-        // Set a new state only if something has changed.
-        if ((Object.keys(deltaState) as (keyof Partial<S>)[]).some(k => deltaState[k] !== uState[k])) {
-          return { ...uState, ...deltaState };
-        }
-        return uState;
-      });
-      return p;
-    },
-    [underlyingState],
-  );
+    const currentState = stateRef.current;
+    if ((Object.keys(deltaState) as (keyof Partial<S>)[]).some(k => deltaState[k] !== currentState[k])) {
+      stateRef.current = { ...currentState, ...deltaState };
+      render(r => !r);
+    }
+
+    return p;
+  }, []);
 
   const resetState = () => setState(initialState);
 
@@ -87,13 +85,14 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
     const actionNames = [...Object.keys(actions)] as (keyof Actions<A>)[];
     actionNames.forEach(k => {
-      actions[k] = (actions[k] as ActionFunction).bind(actions) as Actions<A>[keyof Actions<A>];
+      const action = actions[k];
+      actions[k] = (action as ActionFunction).bind(actions) as Actions<A>[keyof Actions<A>];
 
       if (onError && k !== 'onError') {
         actions[k] = ((...args: never[]): Promise<void> =>
           new Promise(resolve => {
             try {
-              const result = (actions[k] as ActionFunction).apply(actions, args);
+              const result = (action as ActionFunction).apply(actions, args);
               if (result instanceof Promise) {
                 result.then(resolve).catch(err => onError(err, k));
               } else {
@@ -105,8 +104,8 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
           })) as never;
       }
     });
-    return actions;
-  }, [underlyingState]);
+    return Object.freeze(actions);
+  }, []);
 
   useEffect(() => {
     const { init, destroy } = actions;
@@ -118,10 +117,10 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
   }, []);
 
   useEffect(() => {
-    onChange({ ...underlyingState, ...actions });
-  }, [underlyingState]);
+    onChange({ ...stateRef.current, ...actions });
+  }, [stateRef.current]);
 
-  return <Provider value={{ ...underlyingState, ...actions, isPhnqState: true }}>{children}</Provider>;
+  return <Provider value={{ ...stateRef.current, ...actions, isPhnqState: true }}>{children}</Provider>;
 }
 
 const processDefaultState = <S,>(defaultState: State<S>) => ({
