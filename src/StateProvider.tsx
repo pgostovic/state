@@ -1,14 +1,5 @@
 import { createLogger } from '@phnq/log';
-import React, {
-  Context,
-  PropsWithChildren,
-  ReactElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { Context, PropsWithChildren, ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ActionFunction, Actions, GetActionsParams, State } from '.';
 
@@ -44,42 +35,42 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
 
-  const getState = () => stateRef.current;
-
-  const setState = useCallback((subState: Partial<S>): Promise<void> => {
-    log('%s - %o', name.toUpperCase(), subState);
-    const p = new Promise<void>(r => {
-      resQ.current.push(r);
-    });
-
-    if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
-      throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
-    }
-
-    const derivedState = stateDerivers.reduce(
-      (d, { key, derive }) => ({ ...d, [key]: derive({ ...stateRef.current, ...subState }) }),
-      {} as Partial<S>,
-    );
-
-    const deltaState = { ...subState, ...derivedState };
-
-    const currentState = stateRef.current;
-    if ((Object.keys(deltaState) as (keyof Partial<S>)[]).some(k => deltaState[k] !== currentState[k])) {
-      stateRef.current = { ...currentState, ...deltaState };
-      render(r => !r);
-    }
-
-    return p;
-  }, []);
-
-  const resetState = () => setState(initialState);
-
   useEffect(() => {
     resQ.current.forEach(r => r());
     resQ.current = [];
   });
 
   const actions = useMemo(() => {
+    const getState = () => ({ ...stateRef.current });
+
+    const setState = (subState: Partial<S>): Promise<void> => {
+      log('%s - %o', name.toUpperCase(), subState);
+      const p = new Promise<void>(r => {
+        resQ.current.push(r);
+      });
+
+      if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
+        throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+      }
+
+      const derivedState = stateDerivers.reduce(
+        (d, { key, derive }) => ({ ...d, [key]: derive({ ...stateRef.current, ...subState }) }),
+        {} as Partial<S>,
+      );
+
+      const deltaState = { ...subState, ...derivedState };
+
+      const currentState = stateRef.current;
+      if ((Object.keys(deltaState) as (keyof Partial<S>)[]).some(k => deltaState[k] !== currentState[k])) {
+        stateRef.current = { ...currentState, ...deltaState };
+        render(r => !r);
+      }
+
+      return p;
+    };
+
+    const resetState = () => setState(initialState);
+
     const actions = getActions({ ...props, getState, setState, resetState });
     const onError = actions.onError;
 
