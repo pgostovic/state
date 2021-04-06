@@ -68,9 +68,11 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
   const { Consumer } = context;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const consumer = (Wrapped: ComponentType<any>) => <T extends {}>(props: T) => (
-    <Consumer>{state => <Wrapped {...props} {...state} />}</Consumer>
-  );
+  const map = (mapFn = (s: Partial<State<S> & Actions<A>>): unknown => s) => (Wrapped: ComponentType<any>) => <
+    T extends {}
+  >(
+    props: T,
+  ) => <Consumer>{state => <Wrapped {...props} {...mapFn(state)} />}</Consumer>;
 
-  return { provider, consumer, getState: () => state, useState: () => useContext(context) as S & A };
+  return { provider, consumer: map(), map, getState: () => state, useState: () => useContext(context) as S & A };
 };
