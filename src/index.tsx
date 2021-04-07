@@ -50,7 +50,7 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
     ? mapProvider(StateProvider as () => ReactElement)
     : StateProvider) as StateProviderType<S, A, P>;
 
-  const provider = <T extends {}>(Wrapped: ComponentType<T>) => (props: T) => (
+  const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => (
     <MappedProvider
       name={name}
       context={context}

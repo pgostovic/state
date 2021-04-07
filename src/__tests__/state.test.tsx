@@ -6,9 +6,9 @@ import { act } from 'react-dom/test-utils';
 import cheeseState, { CheeseStateProps } from './state/cheese';
 import numState, { NumStateProps, onDestroyCall, onInitCall } from './state/num';
 
-const RootWithProvider: FC<{ stuff?: string }> = cheeseState.provider(
-  numState.provider(({ children }) => <>{children}</>),
-);
+const Root: FC<{ stuff?: string }> = ({ children }) => <>{children}</>;
+
+const RootWithProvider = cheeseState.provider(numState.provider(Root));
 
 let numInitCalls = 0;
 let numDestroyCalls = 0;
