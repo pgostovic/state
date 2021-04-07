@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/extend-expect';
 import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
 import React, { FC, useRef } from 'react';
+import { act } from 'react-dom/test-utils';
 
 import cheeseState, { CheeseStateProps } from './state/cheese';
 import numState, { NumStateProps, onDestroyCall, onInitCall } from './state/num';
@@ -14,7 +15,7 @@ onInitCall(() => (numInitCalls += 1));
 onDestroyCall(() => (numDestroyCalls += 1));
 
 const TestComponent: FC = () => {
-  const { num, numPlus1, incrementNum, setNum42 } = numState.useState();
+  const { num, numPlus1, incrementNum, setNum42, reset, resetAsync, setNums } = numState.useState();
   const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage } = cheeseState.useState();
   const numRenders = useRef(0);
 
@@ -42,6 +43,16 @@ const TestComponent: FC = () => {
       </button>
       <button data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
         Trigger Async Error
+      </button>
+      <button data-testid="reset" onClick={() => reset()}>
+        Reset
+      </button>
+      <button data-testid="resetAsync" onClick={() => resetAsync()}>
+        Reset Async
+      </button>
+      {/* NOTE: this also tests that priomises for no-op setState() calls get resolved. */}
+      <button data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
+        Set Nums
       </button>
     </div>
   );
@@ -214,3 +225,73 @@ test('error catch all async', async () => {
   const errorMessageElement = await waitForElement(() => result.getByTestId('error-message'));
   expect(errorMessageElement).toHaveTextContent('async state error');
 });
+
+test('reset state', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const incButton = result.getByTestId('inc-button');
+  const resetButton = result.getByTestId('reset');
+
+  expect(numElmnt).toHaveTextContent('1');
+
+  fireEvent.click(incButton);
+  expect(numElmnt).toHaveTextContent('2');
+
+  fireEvent.click(resetButton);
+  expect(numElmnt).toHaveTextContent('1');
+});
+
+test('reset state async', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const incButton = result.getByTestId('inc-button');
+  const resetAsyncButton = result.getByTestId('resetAsync');
+
+  expect(numElmnt).toHaveTextContent('1');
+
+  fireEvent.click(incButton);
+  expect(numElmnt).toHaveTextContent('2');
+
+  fireEvent.click(resetAsyncButton);
+  expect(numElmnt).toHaveTextContent('1');
+});
+
+test('async action with awaited setState()', async () => {
+  await act(async () => {
+    const result = render(
+      <RootWithProvider>
+        <TestComponent />
+      </RootWithProvider>,
+    );
+    const numElmnt = result.getByTestId('num');
+    const setNumsButton = result.getByTestId('setNums');
+    const numRendersElmnt = result.getByTestId('numRenders');
+
+    expect(numElmnt).toHaveTextContent('1');
+
+    /**
+     * Note: this calls the following:
+     *
+     *    Calls setNums([5, 6, 6, 7, 8]);
+     *
+     * The second "6" is a no-op, so only 4 renders will occur.
+     */
+    fireEvent.click(setNumsButton);
+
+    await sleep(200);
+
+    expect(numElmnt).toHaveTextContent('8');
+
+    expect(numRendersElmnt).toHaveTextContent('5');
+  });
+});
+
+const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));

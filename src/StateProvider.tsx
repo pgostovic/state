@@ -45,9 +45,6 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
     const setState = (subState: Partial<S>): Promise<void> => {
       log('%s - %o', name.toUpperCase(), subState);
-      const p = new Promise<void>(r => {
-        resQ.current.push(r);
-      });
 
       if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
         throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
@@ -61,12 +58,18 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
       const deltaState = { ...subState, ...derivedState };
 
       const currentState = stateRef.current;
+      // Only affect a state change (and render) if needed. Strict equality on top-level values is the measure.
       if ((Object.keys(deltaState) as (keyof Partial<S>)[]).some(k => deltaState[k] !== currentState[k])) {
         stateRef.current = { ...currentState, ...deltaState };
+        // Queue up the Promise's resolve function for the next render.
+        const p = new Promise<void>(r => {
+          resQ.current.push(r);
+        });
         render(r => !r);
+        return p;
       }
-
-      return p;
+      // If the setState() ends up being a no-op then return a resolved Promise.
+      return Promise.resolve();
     };
 
     const resetState = () => setState(initialState);

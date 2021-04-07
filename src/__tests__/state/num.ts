@@ -10,6 +10,9 @@ interface State {
 interface Actions {
   incrementNum(): void;
   setNum42(): void;
+  reset(): void;
+  resetAsync(): void;
+  setNums(nums: number[]): void;
 }
 
 export type NumStateProps = State & Actions;
@@ -26,7 +29,7 @@ export default createState<State, Actions, With42Props>(
     num: 1,
     numPlus1: ({ num }) => num + 1,
   },
-  ({ getState, setState, fortyTwo }) => ({
+  ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
       if (initCallListener) {
         initCallListener();
@@ -56,6 +59,23 @@ export default createState<State, Actions, With42Props>(
     setNum42() {
       setState({ num: fortyTwo });
     },
+
+    reset() {
+      resetState();
+    },
+
+    async resetAsync() {
+      await resetState();
+    },
+
+    async setNums(nums: number[]) {
+      for (const n of nums) {
+        await sleep(20);
+        await setState({ num: n });
+      }
+    },
   }),
   with42,
 );
+
+const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
