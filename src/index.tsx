@@ -50,7 +50,7 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
     ? mapProvider(StateProvider as () => ReactElement)
     : StateProvider) as StateProviderType<S, A, P>;
 
-  const provider = (Wrapped: ComponentType) => <T extends {}>(props: T) => (
+  const provider = <T extends {}>(Wrapped: ComponentType<T>) => (props: T) => (
     <MappedProvider
       name={name}
       context={context}
@@ -67,12 +67,13 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
 
   const { Consumer } = context;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const map = (mapFn = (s: Partial<State<S> & Actions<A>>): unknown => s) => (Wrapped: ComponentType<any>) => <
-    T extends {}
-  >(
-    props: T,
-  ) => <Consumer>{state => <Wrapped {...props} {...mapFn(state)} />}</Consumer>;
+  function map(mapFn = (s: Partial<State<S> & Actions<A>>): unknown => s) {
+    return function<P = unknown>(Wrapped: ComponentType<P>): ComponentType<P> {
+      return function(props: P) {
+        return <Consumer>{state => <Wrapped {...props} {...mapFn(state)} />}</Consumer>;
+      };
+    };
+  }
 
   return { provider, consumer: map(), map, getState: () => state, useState: () => useContext(context) as S & A };
 };

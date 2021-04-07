@@ -1,12 +1,14 @@
 import '@testing-library/jest-dom/extend-expect';
 import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
-import React, { FC, useRef } from 'react';
+import React, { ComponentType, FC, useRef } from 'react';
 import { act } from 'react-dom/test-utils';
 
 import cheeseState, { CheeseStateProps } from './state/cheese';
 import numState, { NumStateProps, onDestroyCall, onInitCall } from './state/num';
 
-const RootWithProvider: FC = cheeseState.provider(numState.provider(({ children }) => <>{children}</>));
+const RootWithProvider: FC<{ stuff?: string }> = cheeseState.provider(
+  numState.provider(({ children }) => <>{children}</>),
+);
 
 let numInitCalls = 0;
 let numDestroyCalls = 0;
@@ -58,22 +60,22 @@ const TestComponent: FC = () => {
   );
 };
 
-const TestComponentAndConsumer = cheeseState.consumer(
-  numState.consumer(({ num, incrementNum }: CheeseStateProps & NumStateProps) => {
-    return (
-      <div>
-        <div data-testid="num">{num}</div>
-        <button data-testid="inc-button" onClick={() => incrementNum()}>
-          Increment Num
-        </button>
-      </div>
-    );
-  }),
+const TestComponentConsumer: FC<{ bubba: string } & CheeseStateProps & NumStateProps> = ({ num, incrementNum }) => (
+  <div>
+    <div data-testid="num">{num}</div>
+    <button data-testid="inc-button" onClick={() => incrementNum()}>
+      Increment Num
+    </button>
+  </div>
 );
+
+const TestComponentAndConsumer = cheeseState.consumer(numState.consumer(TestComponentConsumer)) as ComponentType<{
+  bubba: string;
+}>;
 
 test('default state', () => {
   const result = render(
-    <RootWithProvider>
+    <RootWithProvider stuff="whatever">
       <TestComponent />
     </RootWithProvider>,
   );
@@ -106,7 +108,7 @@ test('state change with action', () => {
 test('state change with action (via consumer)', () => {
   const result = render(
     <RootWithProvider>
-      <TestComponentAndConsumer />
+      <TestComponentAndConsumer bubba="gump" />
     </RootWithProvider>,
   );
   const numElmnt = result.getByTestId('num');
