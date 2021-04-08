@@ -7,7 +7,7 @@ const log = createLogger('@phnq/state');
 
 interface Props<S, A, P> {
   name: string;
-  context: Context<Partial<State<S> & Actions<A>>>;
+  context: Context<(State<S> & Actions<A>) | undefined>;
   defaultState: State<S>;
   getActions: (getActionsParams: GetActionsParams<S> & P) => Actions<A>;
   onChange(state: S & A): void;

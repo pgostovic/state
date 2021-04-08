@@ -42,7 +42,7 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
   getActions: (getActionsParams: GetActionsParams<S> & P) => Actions<A>,
   mapProvider?: (p: ComponentType<P>) => ComponentType,
 ) => {
-  const context = createContext<Partial<State<S> & Actions<A>>>({});
+  const context = createContext<(State<S> & Actions<A>) | undefined>(undefined);
 
   let state: S & A;
 
@@ -67,13 +67,20 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
 
   const { Consumer } = context;
 
-  function map(mapFn = (s: Partial<State<S> & Actions<A>>): unknown => s) {
-    return function<P = unknown>(Wrapped: ComponentType<P>): ComponentType<P> {
-      return function(props: P) {
-        return <Consumer>{state => <Wrapped {...props} {...mapFn(state)} />}</Consumer>;
+  function map<M = unknown>(mapFn: (s: State<S> & Actions<A>) => M) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return function(Wrapped: ComponentType<any>): ComponentType<any> {
+      return function(props: M) {
+        return <Consumer>{state => <Wrapped {...props} {...(state ? mapFn(state) : {})} />}</Consumer>;
       };
     };
   }
 
-  return { provider, consumer: map(), map, getState: () => state, useState: () => useContext(context) as S & A };
+  const consumer = function<P = unknown>(Wrapped: ComponentType<P>) {
+    return function(props: P & S & A) {
+      return <Consumer>{state => <Wrapped {...props} {...state} />}</Consumer>;
+    } as ComponentType<Omit<P, keyof (S & A)>>;
+  };
+
+  return { provider, consumer, map, getState: () => state, useState: () => useContext(context) as S & A };
 };

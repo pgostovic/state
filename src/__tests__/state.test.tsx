@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/extend-expect';
 import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
-import React, { ComponentType, FC, useRef } from 'react';
+import React, { FC, useRef } from 'react';
 import { act } from 'react-dom/test-utils';
 
 import cheeseState, { CheeseStateProps } from './state/cheese';
@@ -69,9 +69,23 @@ const TestComponentConsumer: FC<{ bubba: string } & CheeseStateProps & NumStateP
   </div>
 );
 
-const TestComponentAndConsumer = cheeseState.consumer(numState.consumer(TestComponentConsumer)) as ComponentType<{
-  bubba: string;
-}>;
+const TestComponentAndConsumer = cheeseState.consumer(numState.consumer(TestComponentConsumer));
+
+const TestComponentMappedConsumer: FC<{ bubba: string } & CheeseStateProps & {
+    mappedNum: number;
+    mappedIncrementNum(): void;
+  }> = ({ mappedNum, mappedIncrementNum }) => (
+  <div>
+    <div data-testid="num">{mappedNum}</div>
+    <button data-testid="inc-button" onClick={() => mappedIncrementNum()}>
+      Increment Num
+    </button>
+  </div>
+);
+
+const TestComponentAndMappedConsumer = cheeseState.consumer(
+  numState.map(s => ({ ...s, mappedNum: s.num, mappedIncrementNum: s.incrementNum }))(TestComponentMappedConsumer),
+);
 
 test('default state', () => {
   const result = render(
@@ -109,6 +123,21 @@ test('state change with action (via consumer)', () => {
   const result = render(
     <RootWithProvider>
       <TestComponentAndConsumer bubba="gump" />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const button = result.getByTestId('inc-button');
+
+  expect(numElmnt).toHaveTextContent('1');
+
+  fireEvent.click(button);
+  expect(numElmnt).toHaveTextContent('2');
+});
+
+test('state change with action (via mapped consumer)', () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponentAndMappedConsumer bubba="gump" />
     </RootWithProvider>,
   );
   const numElmnt = result.getByTestId('num');
