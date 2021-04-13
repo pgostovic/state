@@ -17,7 +17,16 @@ onInitCall(() => (numInitCalls += 1));
 onDestroyCall(() => (numDestroyCalls += 1));
 
 const TestComponent: FC = () => {
-  const { num, numPlus1, incrementNum, setNum42, reset, resetAsync, setNums } = numState.useState();
+  const {
+    num,
+    numPlus1,
+    incrementNum,
+    increment3TimesAsync,
+    setNum42,
+    reset,
+    resetAsync,
+    setNums,
+  } = numState.useState();
   const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage } = cheeseState.useState();
   const numRenders = useRef(0);
 
@@ -33,6 +42,9 @@ const TestComponent: FC = () => {
       {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
       <button data-testid="inc-button" onClick={() => incrementNum()}>
         Increment Num
+      </button>
+      <button data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
+        Increment 3x Asyncs
       </button>
       <button data-testid="reset-cheese" onClick={() => setCheese('Cheddar')}>
         Reset Cheese
@@ -307,6 +319,7 @@ test('async action with awaited setState()', async () => {
     const numRendersElmnt = result.getByTestId('numRenders');
 
     expect(numElmnt).toHaveTextContent('1');
+    expect(numRendersElmnt).toHaveTextContent('1');
 
     /**
      * Note: this calls the following:
@@ -322,6 +335,29 @@ test('async action with awaited setState()', async () => {
     expect(numElmnt).toHaveTextContent('8');
 
     expect(numRendersElmnt).toHaveTextContent('5');
+  });
+});
+
+test('set state async with previous state within action', async () => {
+  await act(async () => {
+    const result = render(
+      <RootWithProvider>
+        <TestComponent />
+      </RootWithProvider>,
+    );
+    const numElmnt = result.getByTestId('num');
+    const numRendersElmnt = result.getByTestId('numRenders');
+    const button = result.getByTestId('inc-3async-button');
+
+    expect(numElmnt).toHaveTextContent('1');
+    expect(numRendersElmnt).toHaveTextContent('1');
+
+    fireEvent.click(button);
+
+    await sleep(200);
+
+    expect(numElmnt).toHaveTextContent('4');
+    expect(numRendersElmnt).toHaveTextContent('4');
   });
 });
 

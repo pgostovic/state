@@ -31,14 +31,10 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
   const stateRef = useRef<S>(initialState);
 
-  const [, render] = useState(false);
+  // This is used for triggering renders.
+  const [renderCount, setRenderCount] = useState(0);
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
-
-  useEffect(() => {
-    resQ.current.forEach(r => r());
-    resQ.current = [];
-  });
 
   const actions = useMemo(() => {
     const getState = () => ({ ...stateRef.current });
@@ -65,7 +61,8 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
         const p = new Promise<void>(r => {
           resQ.current.push(r);
         });
-        render(r => !r);
+        // render(r => !r);
+        setRenderCount(rc => rc + 1);
         return p;
       }
 
@@ -77,19 +74,20 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
 
     const resetState = () => setState(initialState);
 
-    const actions = getActions({ ...props, getState, setState, resetState });
-    const onError = actions.onError;
+    const unboundActions = getActions({ ...props, getState, setState, resetState });
+    const onError = unboundActions.onError;
 
-    const actionNames = [...Object.keys(actions)] as (keyof Actions<A>)[];
+    const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<A>)[];
+    const boundActions: Partial<Actions<A>> = {};
     actionNames.forEach(k => {
-      const action = actions[k];
-      actions[k] = (action as ActionFunction).bind(actions) as Actions<A>[keyof Actions<A>];
+      const action = unboundActions[k];
+      boundActions[k] = (action as ActionFunction).bind(boundActions) as Partial<Actions<A>>[keyof Actions<A>];
 
       if (onError && k !== 'onError') {
-        actions[k] = ((...args: never[]): Promise<void> =>
+        boundActions[k] = ((...args: never[]): Promise<void> =>
           new Promise(resolve => {
             try {
-              const result = (action as ActionFunction).apply(actions, args);
+              const result = (action as ActionFunction).apply(boundActions, args);
               if (result instanceof Promise) {
                 result.then(resolve).catch(err => onError(err, k));
               } else {
@@ -101,7 +99,7 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
           })) as never;
       }
     });
-    return Object.freeze(actions);
+    return Object.freeze(boundActions as Actions<A>);
   }, []);
 
   useEffect(() => {
@@ -117,7 +115,13 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
     onChange({ ...stateRef.current, ...actions });
   }, [stateRef.current]);
 
-  return <Provider value={{ ...stateRef.current, ...actions, isPhnqState: true }}>{children}</Provider>;
+  useEffect(() => {
+    const rs = [...resQ.current];
+    rs.forEach(r => r());
+    resQ.current = resQ.current.filter(r => rs.includes(r));
+  }, [renderCount]);
+
+  return <Provider value={{ ...stateRef.current, ...actions }}>{children}</Provider>;
 }
 
 const processDefaultState = <S,>(defaultState: State<S>) => ({

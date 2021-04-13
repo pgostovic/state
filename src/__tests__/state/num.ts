@@ -13,6 +13,7 @@ interface Actions {
   reset(): void;
   resetAsync(): void;
   setNums(nums: number[]): void;
+  increment3TimesAsync(): void;
 }
 
 export type NumStateProps = State & Actions;
@@ -73,6 +74,14 @@ export default createState<State, Actions, With42Props>(
         await sleep(20);
         await setState({ num: n });
       }
+    },
+
+    async increment3TimesAsync() {
+      await setState({ num: 1 + getState().num });
+      await sleep(50);
+      await setState({ num: 1 + getState().num });
+      await sleep(50);
+      await setState({ num: 1 + getState().num });
     },
   }),
   with42,
