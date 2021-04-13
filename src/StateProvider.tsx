@@ -68,6 +68,9 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
         render(r => !r);
         return p;
       }
+
+      log.warn('ineffectual state change: %s - %o', name.toUpperCase(), subState);
+
       // If the setState() ends up being a no-op then return a resolved Promise.
       return Promise.resolve();
     };
