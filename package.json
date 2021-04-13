@@ -1,6 +1,6 @@
 {
   "name": "@phnq/state",
-  "version": "1.7.9",
+  "version": "1.7.10",
   "description": "State management for React",
   "main": "index.js",
   "scripts": {
