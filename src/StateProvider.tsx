@@ -72,15 +72,13 @@ function StateProvider<S, A, P>(props: PropsWithChildren<Props<S, A, P> & P>) {
       return Promise.resolve();
     };
 
-    const resetState = async (reinitialize = true) => {
-      await setState(initialState);
-      if (reinitialize) {
+    const resetState = (reinitialize = true) =>
+      setState(initialState).then(() => {
         const { init } = actions;
-        if (init) {
+        if (reinitialize && init) {
           init();
         }
-      }
-    };
+      });
 
     const unboundActions = getActions({ ...props, getState, setState, resetState });
     const onError = unboundActions.onError;
