@@ -1,6 +1,9 @@
-import React, { ComponentType, createContext, ReactElement, useContext } from 'react';
+import { createLogger } from '@phnq/log';
+import React, { ComponentType, createContext, ReactElement, useContext, useEffect } from 'react';
 
 import StateProvider, { StateProviderType } from './StateProvider';
+
+const log = createLogger('@phnq/state');
 
 export type State<S> = {
   [K in keyof S]: S[K] | ((state: Omit<S, K>) => S[K]);
@@ -50,20 +53,33 @@ export const createState = <S, A extends VoidActions<A>, P = {}>(
     ? mapProvider(StateProvider as () => ReactElement)
     : StateProvider) as StateProviderType<S, A, P>;
 
-  const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => (
-    <MappedProvider
-      name={name}
-      context={context}
-      defaultState={defaultState}
-      getActions={getActions}
-      onChange={s => {
-        state = s;
-        combinedState[name] = state;
-      }}
-    >
-      <Wrapped {...props} />
-    </MappedProvider>
-  );
+  const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
+    useEffect(() => {
+      if (combinedState[name]) {
+        throw new Error(`Duplicate state name: ${name}`);
+      }
+      combinedState[name] = state;
+      log('Mounted provider: ', name);
+      return () => {
+        delete combinedState[name];
+        log('Unmounted provider: ', name);
+      };
+    }, []);
+
+    return (
+      <MappedProvider
+        name={name}
+        context={context}
+        defaultState={defaultState}
+        getActions={getActions}
+        onChange={s => {
+          state = s;
+        }}
+      >
+        <Wrapped {...props} />
+      </MappedProvider>
+    );
+  };
 
   const { Consumer } = context;
 
