@@ -24,7 +24,7 @@ type VoidActions<T> = Record<keyof T, ActionFunction>;
 export interface GetActionsParams<S> {
   getState(): S;
   setState(subState: Partial<S>): Promise<void>;
-  resetState(): Promise<void>;
+  resetState(reinitialize?: boolean): Promise<void>;
 }
 
 declare global {
