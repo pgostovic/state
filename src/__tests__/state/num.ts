@@ -1,5 +1,5 @@
 import { createState } from '../..';
-import cheeseState from './cheese';
+import cheeseState, { State as CheeseState } from './cheese';
 import with42, { With42Props } from './with42';
 
 interface State {
@@ -24,7 +24,7 @@ let destroyCallListener: (() => void) | undefined;
 export const onInitCall = (listener: () => void) => (initCallListener = listener);
 export const onDestroyCall = (listener: () => void) => (destroyCallListener = listener);
 
-export default createState<State, Actions, With42Props>(
+export default createState<State, Actions, With42Props, { cheeseState: CheeseState }>(
   'Num',
   {
     num: 1,
@@ -46,13 +46,17 @@ export default createState<State, Actions, With42Props>(
     incrementNum() {
       const { num } = getState();
 
-      const { cheese, setCheese } = cheeseState.getState();
+      const { cheese } = getState('cheeseState');
 
-      if (cheese === 'Cheddar') {
-        setCheese('Brie');
-      } else {
-        setCheese('Cheddar');
-      }
+      console.log('=================YO1', cheese);
+
+      // const { cheese, setCheese } = cheeseState.getState();
+
+      // if (cheese === 'Cheddar') {
+      //   setCheese('Brie');
+      // } else {
+      //   setCheese('Cheddar');
+      // }
 
       setState({ num: num + 1 });
     },
@@ -66,25 +70,29 @@ export default createState<State, Actions, With42Props>(
     },
 
     async resetAsync() {
-      await resetState();
+      resetState();
     },
 
     async setNums(nums: number[]) {
       for (const n of nums) {
         await sleep(20);
-        await setState({ num: n });
+        setState({ num: n });
       }
     },
 
     async increment3TimesAsync() {
-      await setState({ num: 1 + getState().num });
       await sleep(50);
-      await setState({ num: 1 + getState().num });
+      setState({ num: 1 + getState().num });
       await sleep(50);
-      await setState({ num: 1 + getState().num });
+      setState({ num: 1 + getState().num });
+      await sleep(50);
+      setState({ num: 1 + getState().num });
     },
   }),
   with42,
+  {
+    cheeseState,
+  },
 );
 
 const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));

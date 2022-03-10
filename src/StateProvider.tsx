@@ -1,7 +1,7 @@
 import { createLogger } from '@phnq/log';
 import React, { Context, PropsWithChildren, ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ActionFunction, Actions, GetActionsParams, State } from '.';
+import { ActionFunction, Actions, GetActionsParams, State } from './indexOld';
 
 const log = createLogger('@phnq/state');
 
