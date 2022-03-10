@@ -46,9 +46,9 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
     incrementNum() {
       const { num } = getState();
 
-      const { cheese } = getState('cheeseState');
+      // const { cheese } = getState('cheeseState');
 
-      console.log('=================YO1', cheese);
+      // console.log('=================YO1', cheese);
 
       // const { cheese, setCheese } = cheeseState.getState();
 
