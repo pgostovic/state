@@ -24,11 +24,14 @@ let destroyCallListener: (() => void) | undefined;
 export const onInitCall = (listener: () => void) => (initCallListener = listener);
 export const onDestroyCall = (listener: () => void) => (destroyCallListener = listener);
 
-export default createState<State, Actions, With42Props, { cheeseState: CheeseState }>(
+export default createState<State, { cheeseState: CheeseState }, Actions, With42Props>(
   'Num',
   {
     num: 1,
     numPlus1: ({ num }) => num + 1,
+  },
+  {
+    cheeseState,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
@@ -46,9 +49,9 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
     incrementNum() {
       const { num } = getState();
 
-      // const { cheese } = getState('cheeseState');
+      const { cheese } = getState('cheeseState');
 
-      // console.log('=================YO1', cheese);
+      console.log('=================YO1', cheese);
 
       // const { cheese, setCheese } = cheeseState.getState();
 
@@ -90,9 +93,6 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
     },
   }),
   with42,
-  {
-    cheeseState,
-  },
 );
 
 const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));

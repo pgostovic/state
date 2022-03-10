@@ -112,6 +112,9 @@ interface InternalStateFactory<S> extends StateFactory<S> {
   useStateBroker(): StateBroker<S>;
 }
 
+type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<A>;
+type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
+
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
  * factory can generate multiple providers/consumers.
@@ -121,13 +124,37 @@ interface InternalStateFactory<S> extends StateFactory<S> {
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export const createState = <S, A extends VoidActions<A>, P = {}, E = {}>(
+export function createState<S, A extends VoidActions<A>, P = {}>(
   name: string,
   defaultState: State<S>,
-  getActions: (getActionsParams: GetActionsParams<S, E> & P) => Actions<A>,
-  mapProvider?: <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>,
-  extStates?: Record<keyof E, StateFactory<E[keyof E]>>,
-): StateFactory<S, A> => {
+  getActions: GetActions<S, A, P, {}>,
+  mapProvider?: MapProvider<P>,
+): StateFactory<S, A>;
+/**
+ * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
+ * factory can generate multiple providers/consumers.
+ * @param name The name of the state. Only used for logging.
+ * @param defaultState The initial value of the state, and derived state functions.
+ * @param extStates Named external state factories.
+ * @param getActions Function that returns the action functions.
+ * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
+ * @returns a state factory.
+ */
+export function createState<S, E, A extends VoidActions<A>, P = {}>(
+  name: string,
+  defaultState: State<S>,
+  extStates: Record<keyof E, StateFactory<E[keyof E]>>,
+  getActions: GetActions<S, A, P, E>,
+  mapProvider?: MapProvider<P>,
+): StateFactory<S, A>;
+export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
+  name: string,
+  defaultState: State<S>,
+  ...args: unknown[]
+): StateFactory<S, A> {
+  const extStates = typeof args[0] === 'object' ? (args[0] as Record<keyof E, StateFactory<E[keyof E]>>) : undefined;
+  const getActions = (extStates ? args[1] : args[0]) as GetActions<S, A, P, E>;
+  const mapProvider = (extStates ? args[2] : args[1]) as MapProvider<P> | undefined;
   const { stateDerivers, initialState } = processDefaultState(defaultState);
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
@@ -323,7 +350,7 @@ export const createState = <S, A extends VoidActions<A>, P = {}, E = {}>(
     useState: useStateFn,
     useStateBroker: () => useContext(Context),
   } as StateFactory<S, A>;
-};
+}
 
 const idIter = (function* idGen(): IterableIterator<number> {
   let i = 0;
