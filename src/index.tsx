@@ -61,6 +61,7 @@ interface ChangeListener<S> {
 }
 
 interface StateBroker<S = unknown, A = unknown> {
+  found: boolean;
   state: S;
   actions: Readonly<Actions<A>>;
   addListener(listener: ChangeListener<S>): void;
@@ -165,39 +166,44 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
   const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
     const listenersRef = useRef<ChangeListener<S>[]>([]);
 
+    /**
+     * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
+     * in `setState()`.
+     */
     const actions = useMemo(() => {
       function getState(): S;
       function getState(extStateName: keyof E): E[keyof E];
       function getState(extStateName?: keyof E) {
         if (extStateName) {
-          return { ...brokers[extStateName].state };
+          return { ...extStateBrokers[extStateName].state };
         }
         return { ...stateBrokerRef.current.state };
       }
 
-      const setState = (subState: Partial<S>) => {
-        log('%s - %o', name.toUpperCase(), subState);
+      const setState = (stateChanges: Partial<S>) => {
+        log('%s - %o', name.toUpperCase(), stateChanges);
 
         const currentState = stateBrokerRef.current.state;
 
-        if (subState !== initialState && Object.keys(subState).some(k => derivedProperties.includes(k))) {
+        if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
           throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
         }
 
+        // Calculate the derived state from current state plus the incoming changes.
         const derivedState = stateDerivers.reduce(
-          (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...subState }) }),
+          (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
           {} as Partial<S>,
         );
 
-        const deltaState = { ...subState, ...derivedState };
+        // The effective state change is the incoming changes plus the some subset of the derived state.
+        const deltaState = { ...stateChanges, ...derivedState };
 
-        // Only affect a state change (and render) if needed. Strict equality on top-level values is the measure.
+        // Only notify of a state change if needed. Strict equality on top-level values is the measure.
         const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
           k => deltaState[k] !== currentState[k],
         );
         if (changedKeys.length > 0) {
           stateBrokerRef.current.state = { ...currentState, ...deltaState };
-
           listenersRef.current.forEach(({ onChange }) => onChange(changedKeys));
         }
       };
@@ -210,9 +216,21 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
         }
       };
 
+      /**
+       * Bind the action functions to the enclosing object so other sibling actions may
+       * be called by using `this`. For example:
+       *
+       *   someAction() {
+       *     doSomething();
+       *   },
+       *
+       *   someOtherAction() {
+       *     this.someAction();
+       *     doSomeOtherThing();
+       *   }
+       */
       const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
       const onError = unboundActions.onError;
-
       const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<A>)[];
       const boundActions: Partial<Actions<A>> = {};
       actionNames.forEach(k => {
@@ -238,20 +256,20 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
       return Object.freeze(boundActions as Actions<A>);
     }, []);
 
+    // Call init() on mount, destroy() on unmount.
     useEffect(() => {
       const { init, destroy } = actions;
-
       if (init) {
         init();
       }
       return destroy;
     }, []);
 
+    // Set up the StateBroker for the current provider.
     const stateBrokerRef = useRef<StateBroker<S, A>>({
+      found: true,
       state: initialState,
-
       actions,
-
       addListener(listener: ChangeListener<S>) {
         listenersRef.current = [...listenersRef.current, listener];
       },
@@ -260,20 +278,21 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
       },
     });
 
-    const brokers = {} as Record<keyof E, StateBroker<E[keyof E]>>;
-
+    // Obtain references to external StateBroker instances.
+    const extStateBrokers = {} as Record<keyof E, StateBroker<E[keyof E]>>;
     if (extStates) {
       let k: keyof E;
       for (k in extStates) {
-        brokers[k] = (extStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
+        extStateBrokers[k] = (extStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
       }
     }
 
+    // Add/remove current StateBroker on mount/unmount.
     useEffect(() => {
-      stateBrokers = [...stateBrokers, [name, stateBrokerRef.current]];
+      allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current]];
       log('Mounted provider: ', name);
       return () => {
-        stateBrokers = stateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
+        allStateBrokers = allStateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
         log('Unmounted provider: ', name);
       };
     }, []);
@@ -286,6 +305,7 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
   };
 
   const Context = createContext<Partial<StateBroker<S, A>>>({
+    found: false,
     state: initialState,
     addListener() {
       throw new Error('Default should not be invoked: addListener');
@@ -297,8 +317,14 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
 
   const useStateFn = (...keys: (keyof S)[]) => {
     const idRef = useRef(idIter.next().value);
-    const { state, actions, addListener, removeListener } = useContext(Context);
+    const { found, state, actions, addListener, removeListener } = useContext(Context);
     const [, render] = useState(false);
+
+    if (!found) {
+      throw new Error(
+        `No provider found for state '${name}'. The current component must be a descendent of a '${name}' state provider.`,
+      );
+    }
 
     useEffect(() => {
       if (addListener && removeListener) {
@@ -313,15 +339,15 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
         return () => {
           removeListener(idRef.current);
         };
-      } else {
-        throw new Error('Should not happen!');
       }
     }, []);
 
     if (state && actions) {
       return { ...state, ...actions };
     } else {
-      throw new Error('Should not happen!');
+      throw new Error(
+        'Something strange happened! The StateBroker was found, but one or both of `state` and `actions` was not set.',
+      );
     }
   };
 
@@ -348,7 +374,15 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
       : provider) as StateFactory<S, A>['provider'],
     map,
     useState: useStateFn,
-    useStateBroker: () => useContext(Context),
+    useStateBroker: () => {
+      const stateBroker = useContext(Context);
+      if (!stateBroker.found) {
+        throw new Error(
+          `No provider found for state '${name}'. The current component must be a descendent of a '${name}' state provider.`,
+        );
+      }
+      return stateBroker;
+    },
   } as StateFactory<S, A>;
 }
 
@@ -384,15 +418,15 @@ declare global {
   }
 }
 
-let stateBrokers: Array<[string, StateBroker<unknown, unknown>]> = [];
+let allStateBrokers: Array<[string, StateBroker<unknown, unknown>]> = [];
 
 if (!window.getAllStates) {
-  window.getAllStates = () => stateBrokers.map(([name, stateBroker]) => [name, stateBroker.state]);
+  window.getAllStates = () => allStateBrokers.map(([name, stateBroker]) => [name, stateBroker.state]);
 }
 
 if (!window.logAllStates) {
   window.logAllStates = () => {
-    stateBrokers.forEach(([name, stateBroker]) => {
+    allStateBrokers.forEach(([name, stateBroker]) => {
       console.groupCollapsed(
         `${name} %c${Object.keys(stateBroker.state as object).join()}`,
         'font-weight: normal; color: #666',
