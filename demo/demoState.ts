@@ -6,6 +6,7 @@ interface State {
   otherCheese: 'Jack' | 'Gruyere' | 'Cream';
   errorAction?: string;
   errorMessage?: string;
+  num: number;
 }
 
 interface Actions {
@@ -24,8 +25,16 @@ export default createState<State, Actions, With42Props>(
     otherCheese: 'Jack',
     errorAction: undefined,
     errorMessage: undefined,
+    num: 0,
   },
-  ({ setState, fortyTwo }) => ({
+  ({ setState, getState, fortyTwo }) => ({
+    init() {
+      console.log('fortyTwo', fortyTwo);
+      setInterval(() => {
+        setState({ num: getState().num + 1 });
+      }, 1000);
+    },
+
     onError(err, action) {
       if (err instanceof Error) {
         setState({ errorAction: action, errorMessage: err.message });

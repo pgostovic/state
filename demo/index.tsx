@@ -1,18 +1,11 @@
 import ReactDom from 'react-dom';
 
-import React, { FC, useEffect, useState } from 'React';
+import React, { FC, useState } from 'React';
 
 import demoState from './demoState';
 
 const Demo: FC<{ bubba: string }> = ({ bubba }) => {
-  const [, render] = useState(false);
   const [show, setShow] = useState(true);
-
-  useEffect(() => {
-    setInterval(() => {
-      render(r => !r);
-    }, 5000);
-  }, []);
 
   return (
     <div>
@@ -25,7 +18,8 @@ const Demo: FC<{ bubba: string }> = ({ bubba }) => {
 };
 
 const StateUser: FC = () => {
-  const { cheese, setCheese, otherCheese, setOtherCheese } = demoState.useState('cheese', 'otherCheese');
+  console.log('RENDER');
+  const { cheese, setCheese, otherCheese, setOtherCheese } = demoState.useState();
   return (
     <div>
       Cheese: {cheese}
