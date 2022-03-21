@@ -18,11 +18,11 @@ interface Actions {
 
 export type NumStateProps = State & Actions;
 
-let initCallListener: (() => void) | undefined;
-let destroyCallListener: (() => void) | undefined;
+const initCallListeners: (() => void)[] = [];
+const destroyCallListeners: (() => void)[] = [];
 
-export const onInitCall = (listener: () => void) => (initCallListener = listener);
-export const onDestroyCall = (listener: () => void) => (destroyCallListener = listener);
+export const onInitCall = (listener: () => void) => initCallListeners.push(listener);
+export const onDestroyCall = (listener: () => void) => destroyCallListeners.push(listener);
 
 export default createState<State, { cheeseState: CheeseState }, Actions, With42Props>(
   'Num',
@@ -35,23 +35,19 @@ export default createState<State, { cheeseState: CheeseState }, Actions, With42P
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
-      if (initCallListener) {
-        initCallListener();
-      }
+      initCallListeners.forEach(listener => listener());
     },
 
     destroy() {
-      if (destroyCallListener) {
-        destroyCallListener();
-      }
+      destroyCallListeners.forEach(listener => listener());
     },
 
     incrementNum() {
       const { num } = getState();
 
-      const { cheese } = getState('cheeseState');
+      // const { cheese } = getState('cheeseState');
 
-      console.log('=================YO1', cheese);
+      // console.log('=================YO1', cheese);
 
       // const { cheese, setCheese } = cheeseState.getState();
 

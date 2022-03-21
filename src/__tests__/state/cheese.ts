@@ -4,12 +4,14 @@ export interface State {
   cheese: 'Cheddar' | 'Brie' | 'Gouda';
   errorAction?: string;
   errorMessage?: string;
+  notReferenced: number;
 }
 
 interface Actions {
   setCheese(cheese: State['cheese']): void;
   triggerAnError(): void;
   triggerAnAsyncError(): void;
+  setNotReferenced(notReferenced: number): void;
 }
 
 export type CheeseStateProps = State & Actions;
@@ -20,6 +22,7 @@ export default createState<State, Actions>(
     cheese: 'Cheddar',
     errorAction: undefined,
     errorMessage: undefined,
+    notReferenced: 0,
   },
   ({ setState }) => ({
     onError(err, action) {
@@ -39,6 +42,10 @@ export default createState<State, Actions>(
     async triggerAnAsyncError() {
       await sleep(200);
       throw new Error('async state error');
+    },
+
+    setNotReferenced(notReferenced) {
+      setState({ notReferenced });
     },
   }),
 );

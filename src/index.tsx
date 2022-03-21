@@ -3,6 +3,11 @@ import React, { ComponentType, createContext, useContext, useEffect, useMemo, us
 
 const log = createLogger('@phnq/state');
 
+let allowProxyUsage = true;
+export const setAllowProxyUsage = (allow: boolean) => {
+  allowProxyUsage = allow;
+};
+
 type State<S> = {
   [K in keyof S]: S[K] | ((state: Omit<S, K>) => S[K]);
 } & { [key: string]: unknown };
@@ -79,14 +84,17 @@ export interface StateFactory<S = unknown, A = unknown> {
   provider: <T extends {}>(Wrapped: ComponentType<T>) => ComponentType<T>;
   /**
    * This hook returns the complete state and actions of its nearest counterpart provider
-   * ancestor in the component hierarchy. If no arguments are passed then the component
-   * containing the `useState()` call will render whenever the state changes. However,
-   * supplying state attribute keys as arguments will limit the rendering to occasions
-   * when attributes for specified keys change.
-   * @param keys list of state attribute keys to trigger renders. Empty means every state
-   * change triggers a render.
+   * ancestor in the component hierarchy. Referencing an attribute in the returned state
+   * implicitly subscribes the current render context to be notified when that attribute's
+   * value changes. The "notification" is a render. For example, consider:
+   * ```ts
+   *   const { firstName } = userState.useState();
+   * ```
+   * A render will be triggered if `firstName` changes in the state. However, suppose there
+   * is also a value in the state for the attribute `lastName`; no render will occur as a
+   * result of `lastName` changing.
    */
-  useState(...keys: (keyof S)[]): S & Readonly<A>;
+  useState(): S & Readonly<A>;
   /**
    * @deprecated
    * Wrapping a component with this HOC adds the ancestor provider's state attribute keys
@@ -125,7 +133,7 @@ type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Om
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S, A extends VoidActions<A>, P = {}>(
+export function createState<S extends object, A extends VoidActions<A>, P = {}>(
   name: string,
   defaultState: State<S>,
   getActions: GetActions<S, A, P, {}>,
@@ -141,14 +149,14 @@ export function createState<S, A extends VoidActions<A>, P = {}>(
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S, E, A extends VoidActions<A>, P = {}>(
+export function createState<S extends object, E, A extends VoidActions<A>, P = {}>(
   name: string,
   defaultState: State<S>,
   extStates: Record<keyof E, StateFactory<E[keyof E]>>,
   getActions: GetActions<S, A, P, E>,
   mapProvider?: MapProvider<P>,
 ): StateFactory<S, A>;
-export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
+export function createState<S extends object, A extends VoidActions<A>, P = {}, E = {}>(
   name: string,
   defaultState: State<S>,
   ...args: unknown[]
@@ -307,15 +315,9 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
   const Context = createContext<Partial<StateBroker<S, A>>>({
     found: false,
     state: initialState,
-    addListener() {
-      throw new Error('Default should not be invoked: addListener');
-    },
-    removeListener() {
-      throw new Error('Default should not be invoked: removeListener');
-    },
   });
 
-  const useStateFn = (...keys: (keyof S)[]) => {
+  const useStateFn = () => {
     const idRef = useRef(idIter.next().value);
     const { found, state, actions, addListener, removeListener } = useContext(Context);
     const [, render] = useState(false);
@@ -326,12 +328,14 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
       );
     }
 
+    const refKeys = new Set<keyof S | keyof A>();
+
     useEffect(() => {
       if (addListener && removeListener) {
         addListener({
           id: idRef.current,
           onChange(changedKeys) {
-            if (keys.length === 0 || keys.some(k => changedKeys.includes(k))) {
+            if (changedKeys.some(k => refKeys.has(k))) {
               render(r => !r);
             }
           },
@@ -343,7 +347,23 @@ export function createState<S, A extends VoidActions<A>, P = {}, E = {}>(
     }, []);
 
     if (state && actions) {
-      return { ...state, ...actions };
+      const stateCopy = { ...state, ...actions };
+      /**
+       * Only return a Proxy if the browser supports it. Otherwise just return
+       * the whole state. Proxy is required for implicit substate change subscription.
+       */
+      if (allowProxyUsage && typeof Proxy === 'function') {
+        const stateProxy = new Proxy(stateCopy, {
+          get(target, prop) {
+            refKeys.add(prop as keyof S | keyof A);
+            return target[prop as keyof S | keyof A];
+          },
+        });
+        return stateProxy;
+      } else {
+        Object.keys(stateCopy).forEach(k => refKeys.add(k as keyof S | keyof A));
+        return stateCopy;
+      }
     } else {
       throw new Error(
         'Something strange happened! The StateBroker was found, but one or both of `state` and `actions` was not set.',
