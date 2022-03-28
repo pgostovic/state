@@ -1,5 +1,5 @@
 import { createState } from '../..';
-import cheeseState, { State as CheeseState } from './cheese';
+import cheeseState, { CheeseStateProps } from './cheese';
 import with42, { With42Props } from './with42';
 
 interface State {
@@ -24,7 +24,7 @@ const destroyCallListeners: (() => void)[] = [];
 export const onInitCall = (listener: () => void) => initCallListeners.push(listener);
 export const onDestroyCall = (listener: () => void) => destroyCallListeners.push(listener);
 
-export default createState<State, { cheeseState: CheeseState }, Actions, With42Props>(
+export default createState<State, { cheeseState: CheeseStateProps }, Actions, With42Props>(
   'Num',
   {
     num: 1,
@@ -45,17 +45,13 @@ export default createState<State, { cheeseState: CheeseState }, Actions, With42P
     incrementNum() {
       const { num } = getState();
 
-      // const { cheese } = getState('cheeseState');
+      // const { cheese, setCheese } = getState('cheeseState');
 
-      // console.log('=================YO1', cheese);
+      // console.log('=================YO1', cheese, setCheese);
 
-      // const { cheese, setCheese } = cheeseState.getState();
+      // setCheese('Brie');
 
-      // if (cheese === 'Cheddar') {
-      //   setCheese('Brie');
-      // } else {
-      //   setCheese('Cheddar');
-      // }
+      // console.log('=================YO2', getState('cheeseState').cheese);
 
       setState({ num: num + 1 });
     },

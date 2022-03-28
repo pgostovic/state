@@ -183,7 +183,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       function getState(extStateName: keyof E): E[keyof E];
       function getState(extStateName?: keyof E) {
         if (extStateName) {
-          return { ...extStateBrokers[extStateName].state };
+          return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
         }
         return { ...stateBrokerRef.current.state };
       }
