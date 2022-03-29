@@ -317,7 +317,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     state: initialState,
   });
 
-  const useStateFn = () => {
+  const useStateFn = (forceNoProxy = false) => {
     const idRef = useRef(idIter.next().value);
     const { found, state, actions, addListener, removeListener } = useContext(Context);
     const [, render] = useState(false);
@@ -352,7 +352,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
        * Only return a Proxy if the browser supports it. Otherwise just return
        * the whole state. Proxy is required for implicit substate change subscription.
        */
-      if (allowProxyUsage && typeof Proxy === 'function') {
+      if (!forceNoProxy && allowProxyUsage && typeof Proxy === 'function') {
         const stateProxy = new Proxy(stateCopy, {
           get(target, prop) {
             refKeys.add(prop as keyof S | keyof A);
@@ -373,7 +373,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
   const consumer = function<T = unknown>(Wrapped: ComponentType<T>) {
     return function(props: T & S & A) {
-      const stateAndActions = useStateFn();
+      const stateAndActions = useStateFn(true);
       return <Wrapped {...props} {...stateAndActions} />;
     } as ComponentType<Omit<T, keyof (S & A)>>;
   };
