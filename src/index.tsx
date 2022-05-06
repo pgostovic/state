@@ -12,7 +12,7 @@ type State<S> = {
   [K in keyof S]: S[K] | ((state: Omit<S, K>) => S[K]);
 } & { [key: string]: unknown };
 
-interface ImplicitActions<A> {
+interface ImplicitActions<S, A> {
   /**
    * This gets called when the state provider is mounted, or if the `ressetState(true)`
    * action is called from a consumer.
@@ -28,10 +28,15 @@ interface ImplicitActions<A> {
    * @param error the error that was thrown in the action.
    * @param action the name of the action where the error was thrown.
    */
-  onError?(error: unknown, action: keyof Actions<A>): void;
+  onError?(error: unknown, action: keyof Actions<S, A>): void;
+
+  /**
+   * This gets called after state changes have been made.
+   */
+  onChanges?(changedKeys: (keyof S)[], prevState: S): void;
 }
 
-type Actions<A> = A & ImplicitActions<A>;
+type Actions<S, A> = A & ImplicitActions<S, A>;
 
 type ActionFunction = (...args: never[]) => void | Promise<void>;
 
@@ -68,7 +73,7 @@ interface ChangeListener<S> {
 interface StateBroker<S = unknown, A = unknown> {
   found: boolean;
   state: S;
-  actions: Readonly<Actions<A>>;
+  actions: Readonly<Actions<S, A>>;
   addListener(listener: ChangeListener<S>): void;
   removeListener(id: number): void;
 }
@@ -111,7 +116,7 @@ export interface StateFactory<S = unknown, A = unknown> {
    * @param mapFn
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  map<T = unknown>(mapFn: (s: State<S> & Actions<A>) => T): (Wrapped: ComponentType<any>) => ComponentType<any>;
+  map<T = unknown>(mapFn: (s: State<S> & Actions<S, A>) => T): (Wrapped: ComponentType<any>) => ComponentType<any>;
 }
 
 /**
@@ -121,7 +126,7 @@ interface InternalStateFactory<S> extends StateFactory<S> {
   useStateBroker(): StateBroker<S>;
 }
 
-type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<A>;
+type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
 
 /**
@@ -211,8 +216,14 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
           k => deltaState[k] !== currentState[k],
         );
         if (changedKeys.length > 0) {
+          const prevState = stateBrokerRef.current.state;
           stateBrokerRef.current.state = { ...currentState, ...deltaState };
           listenersRef.current.forEach(({ onChange }) => onChange(changedKeys));
+
+          const { onChanges } = actions;
+          if (onChanges) {
+            onChanges(changedKeys, prevState);
+          }
         }
       };
 
@@ -239,11 +250,11 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
        */
       const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
       const onError = unboundActions.onError;
-      const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<A>)[];
-      const boundActions: Partial<Actions<A>> = {};
+      const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
+      const boundActions: Partial<Actions<S, A>> = {};
       actionNames.forEach(k => {
         const action = unboundActions[k];
-        boundActions[k] = (action as ActionFunction).bind(boundActions) as Partial<Actions<A>>[keyof Actions<A>];
+        boundActions[k] = (action as ActionFunction).bind(boundActions) as Partial<Actions<S, A>>[keyof Actions<S, A>];
 
         if (onError && k !== 'onError') {
           boundActions[k] = ((...args: never[]): Promise<void> =>
@@ -261,7 +272,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
             })) as never;
         }
       });
-      return Object.freeze(boundActions as Actions<A>);
+      return Object.freeze(boundActions as Actions<S, A>);
     }, []);
 
     // Call init() on mount, destroy() on unmount.
@@ -378,7 +389,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     } as ComponentType<Omit<T, keyof (S & A)>>;
   };
 
-  function map<T = unknown>(mapFn: (s: State<S> & Actions<A>) => T) {
+  function map<T = unknown>(mapFn: (s: State<S> & Actions<S, A>) => T) {
     return function(Wrapped: ComponentType): ComponentType<T> {
       return function(props: T) {
         const stateAndActions = useStateFn();

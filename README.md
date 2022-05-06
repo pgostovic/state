@@ -25,7 +25,10 @@ A `provider` represents a domain-specific data store and provides a programmatic
 #### Consumer
 A `consumer` brokers access to its corresponding state provider, i.e. its closest same-domain provider ancestor. Access to the data store's data and its API are provided to the wrapped component via props.
 
-The `createState` function in `@phnq/state` is used to create create a matching domain-specific provider and consumer. It returns a JavaScript object with the keys 'provider' and 'consumer'.
+#### useState() consumer hook
+The `useState()` hook provides access to the corresponding ancestor state provider when used in functional components. The `useState()` function returns the complete state. State changes trigger renders in the context where `useState()` is used. As a render-reducing optimization, renders are only triggered when referenced state values change.
+
+The `createState` function in `@phnq/state` is used to create create a matching domain-specific provider/consumer/useState(). It returns a JavaScript object with the keys 'provider', 'consumer', and 'useState'.
 
 ### State and Actions
 Inspired by Redux's nomenclature, the data in a provider's data store is referred to as `State`, and the programmatic API is said to be composed of `Actions` -- i.e. each function in the API is an `Action`.
@@ -34,7 +37,7 @@ Actions are logically and semantically decoupled from the results they yield. In
 
 ## Examples
 
-#### UIState.ts
+#### uiState.ts
 This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update the accentColor. The provider and consumer, which are returned from `createState`, are exported.
 
 ```ts
@@ -80,14 +83,32 @@ This Box component is a consumer of the UIState declared above. Notice how the `
 
 ```tsx
 import React, { FC } from 'react';
-import UIState, { UIStateProps } from './UIState';
+import uiState, { UIStateProps } from './uiState';
 
 const Box:FC<UIStateProps> = ({ accentColor, children }) => (
   <div style={{ border: `1px solid ${accentColor}` }}>{children}</div>
 );
 
-export default  UIState.consumer(Box);
+export default  uiState.consumer(Box);
 ```
+
+#### Box.tsx (useState() consumer hook)
+
+The preferred way of consuming state in a React functional component is to use the useState() hook. It's more convenient since it doesn't require
+any additional TypeScript types on the incoming props. It's also easier to manage state key collisions when consuming multiple states in one component.
+
+```tsx
+import React, { FC } from 'react';
+import uiState from './uiState';
+
+const Box: FC = ({ children }) => {
+  const { accentColor } = uiState.useState();
+  return <div style={{ border: `1px solid ${accentColor}` }}>{children}</div>;
+};
+
+export default  Box;
+```
+
 
 We haven't added a provider yet though. If the Box component were rendered without it's corresponding provider as an ancestor, an error would be thrown with the message:
 
@@ -99,7 +120,7 @@ This Container component is wrapped by the UIState provider which allows descend
 
 ```tsx
 import React, { FC } from 'react';
-import UIState from './UIState';
+import uiState from './uiState';
 import Box from './Box';
 
 const Container:FC = () => (
@@ -108,16 +129,16 @@ const Container:FC = () => (
   </div>
 );
 
-export default  UIState.provider(Container);
+export default  uiState.provider(Container);
 ```
 
 #### ChangeAccentColor.tsx (consumer)
 
-Here's an example of a consumer component that invokes an action. It's a button that, when clicked sets the UIState's accentColor to the color passed in as a prop.
+Here's an example of a consumer component that invokes an action. It's a button that, when clicked sets the uiState's accentColor to the color passed in as a prop.
 
 ```tsx
 import React, { FC } from 'react';
-import UIState, { UIStateProps } from './UIState';
+import uiState, { UIStateProps } from './uiState';
 
 interface Props {
   color: string;
@@ -129,7 +150,7 @@ const ChangeAccentColor:FC<UIStateProps> = ({ color, setAccentColor }) => (
   </button>
 );
 
-export default  UIState.consumer(ChangeAccentColor);
+export default  uiState.consumer(ChangeAccentColor);
 ```
 
 
@@ -139,7 +160,7 @@ This is the same Container component from above, but now it has a few buttons fo
 
 ```tsx
 import React, { FC } from 'react';
-import UIState from './UIState';
+import uiState from './uiState';
 import Box from './Box';
 import ChangeAccentColor from './ChangeAccentColor';
 
@@ -153,7 +174,7 @@ const Container:FC = () => (
   </div>
 );
 
-export default  UIState.provider(Container);
+export default  uiState.provider(Container);
 ```
 
 ## Async Side-Effects
