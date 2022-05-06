@@ -178,6 +178,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
    */
   const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
     const listenersRef = useRef<ChangeListener<S>[]>([]);
+    const onChangesRunning = useRef(false);
 
     /**
      * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
@@ -194,6 +195,10 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       }
 
       const setState = (stateChanges: Partial<S>) => {
+        if (onChangesRunning.current) {
+          throw new Error('Calling setState() from onChanges() is forbidden.');
+        }
+
         log('%s - %o', name.toUpperCase(), stateChanges);
 
         const currentState = stateBrokerRef.current.state;
@@ -222,7 +227,12 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
           const { onChanges } = actions;
           if (onChanges) {
-            onChanges(changedKeys, prevState);
+            try {
+              onChangesRunning.current = true;
+              onChanges(changedKeys, prevState);
+            } finally {
+              onChangesRunning.current = false;
+            }
           }
         }
       };
