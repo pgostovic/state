@@ -33,7 +33,7 @@ interface ImplicitActions<S, A> {
   /**
    * This gets called after state changes have been made.
    */
-  onChanges?(changedKeys: (keyof S)[], prevState: S): void;
+  onChange?(changedKeys: (keyof S)[], prevState: S): void;
 }
 
 type Actions<S, A> = A & ImplicitActions<S, A>;
@@ -67,7 +67,7 @@ interface GetActionsParams<S, E> {
 
 interface ChangeListener<S> {
   id: number;
-  onChange(changedKeys: (keyof S)[]): void;
+  onChangeInternal(changedKeys: (keyof S)[]): void;
 }
 
 interface StateBroker<S = unknown, A = unknown> {
@@ -173,12 +173,14 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
 
+  const MAX_CONCURRENT_ON_CHANGE_COUNT = 5;
+
   /**
    * State Provider
    */
   const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
     const listenersRef = useRef<ChangeListener<S>[]>([]);
-    const onChangesRunning = useRef(false);
+    const onChangeCount = useRef(0);
 
     /**
      * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
@@ -195,8 +197,10 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       }
 
       const setState = (stateChanges: Partial<S>) => {
-        if (onChangesRunning.current) {
-          throw new Error('Calling setState() from onChanges() is forbidden.');
+        if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
+          throw new Error(
+            'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
+          );
         }
 
         log('%s - %o', name.toUpperCase(), stateChanges);
@@ -223,15 +227,15 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         if (changedKeys.length > 0) {
           const prevState = stateBrokerRef.current.state;
           stateBrokerRef.current.state = { ...currentState, ...deltaState };
-          listenersRef.current.forEach(({ onChange }) => onChange(changedKeys));
+          listenersRef.current.forEach(({ onChangeInternal }) => onChangeInternal(changedKeys));
 
-          const { onChanges } = actions;
-          if (onChanges) {
+          const { onChange } = actions;
+          if (onChange) {
             try {
-              onChangesRunning.current = true;
-              onChanges(changedKeys, prevState);
+              onChangeCount.current += 1;
+              onChange(changedKeys, prevState);
             } finally {
-              onChangesRunning.current = false;
+              onChangeCount.current -= 1;
             }
           }
         }
@@ -355,7 +359,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       if (addListener && removeListener) {
         addListener({
           id: idRef.current,
-          onChange(changedKeys) {
+          onChangeInternal(changedKeys) {
             if (alwaysRenderOnChange || changedKeys.some(k => refKeys.has(k))) {
               render(r => !r);
             }
