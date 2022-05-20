@@ -273,16 +273,18 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         if (onError && k !== 'onError') {
           boundActions[k] = ((...args: never[]): Promise<void> =>
             new Promise(resolve => {
-              try {
-                const result = (action as ActionFunction).apply(boundActions, args);
-                if (result instanceof Promise) {
-                  result.then(resolve).catch(err => onError(err, k));
-                } else {
-                  resolve(result);
+              setTimeout(() => {
+                try {
+                  const result = (action as ActionFunction).apply(boundActions, args);
+                  if (result instanceof Promise) {
+                    result.then(resolve).catch(err => onError(err, k));
+                  } else {
+                    resolve(result);
+                  }
+                } catch (err) {
+                  onError(err, k);
                 }
-              } catch (err) {
-                onError(err, k);
-              }
+              }, 0);
             })) as never;
         }
       });

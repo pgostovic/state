@@ -151,24 +151,28 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('3');
   });
 
-  test('state change not referenced', () => {
-    const result = render(
-      <RootWithProvider>
-        <TestComponent />
-      </RootWithProvider>,
-    );
-    const numRendersElmnt = result.getByTestId('numRenders');
-    const setNrButton = result.getByTestId('set-not-referenced');
-    const incButton = result.getByTestId('inc-button');
+  test('state change not referenced', async () => {
+    await act(async () => {
+      const result = render(
+        <RootWithProvider>
+          <TestComponent />
+        </RootWithProvider>,
+      );
+      const numRendersElmnt = result.getByTestId('numRenders');
+      const setNrButton = result.getByTestId('set-not-referenced');
+      const incButton = result.getByTestId('inc-button');
 
-    // Confirm that no render happens when changing a non-referenced state value.
-    expect(numRendersElmnt).toHaveTextContent('1');
-    fireEvent.click(setNrButton);
-    expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '1' : '2');
+      // Confirm that no render happens when changing a non-referenced state value.
+      expect(numRendersElmnt).toHaveTextContent('1');
+      fireEvent.click(setNrButton);
 
-    // Confirm that a render does happen when a referenced state value changes.
-    fireEvent.click(incButton);
-    expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '2' : '3');
+      await sleep(200);
+      expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '1' : '2');
+
+      // Confirm that a render does happen when a referenced state value changes.
+      fireEvent.click(incButton);
+      expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '2' : '3');
+    });
   });
 
   test('state change with action (via consumer)', () => {
