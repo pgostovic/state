@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/extend-expect';
-import { cleanup, fireEvent, render, waitForElement } from '@testing-library/react';
+import { fireEvent, render, waitForDomChange, waitForElement } from '@testing-library/react';
 import React, { FC, useRef } from 'react';
 import { act } from 'react-dom/test-utils';
 
 import { setAllowProxyUsage } from '..';
 import cheeseState, { CheeseStateProps } from './state/cheese';
-import numState, { NumStateProps, onDestroyCall, onInitCall } from './state/num';
+import numState, { NumStateProps } from './state/num';
 
 export const runTests = async (allowProxyUsage = true) => {
   setAllowProxyUsage(allowProxyUsage);
@@ -13,17 +13,6 @@ export const runTests = async (allowProxyUsage = true) => {
   const Root: FC<{ stuff?: string }> = ({ children }) => <>{children}</>;
 
   const RootWithProvider = cheeseState.provider(numState.provider(Root));
-
-  let numInitCalls = 0;
-  let numDestroyCalls = 0;
-
-  onInitCall(() => (numInitCalls += 1));
-  onDestroyCall(() => (numDestroyCalls += 1));
-
-  beforeEach(() => {
-    numInitCalls = 0;
-    numDestroyCalls = 0;
-  });
 
   const TestComponent: FC = () => {
     const {
@@ -35,6 +24,8 @@ export const runTests = async (allowProxyUsage = true) => {
       reset,
       resetAsync,
       setNums,
+      extVal,
+      incrementExtVal,
     } = numState.useState();
     const {
       cheese,
@@ -54,6 +45,7 @@ export const runTests = async (allowProxyUsage = true) => {
         <div data-testid="num">{num}</div>
         <div data-testid="numPlus1">{numPlus1}</div>
         <div data-testid="cheese">{cheese}</div>
+        <div data-testid="extVal">{extVal}</div>
         <div data-testid="numRenders">{numRenders.current}</div>
         {errorAction && <div data-testid="error-action">{errorAction}</div>}
         {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
@@ -81,10 +73,13 @@ export const runTests = async (allowProxyUsage = true) => {
         <button data-testid="reset" onClick={() => reset()}>
           Reset
         </button>
+        <button data-testid="incExtVal" onClick={() => incrementExtVal()}>
+          Inc Ext Val
+        </button>
         <button data-testid="resetAsync" onClick={() => resetAsync()}>
           Reset Async
         </button>
-        {/* NOTE: this also tests that priomises for no-op setState() calls get resolved. */}
+        {/* NOTE: this also tests that promises for no-op setState() calls get resolved. */}
         <button data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
           Set Nums
         </button>
@@ -129,7 +124,7 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
   });
 
-  test('state change with action', () => {
+  test('state change with action', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -143,11 +138,12 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numRendersElmnt).toHaveTextContent('1');
 
     fireEvent.click(button);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('2');
-
     expect(numRendersElmnt).toHaveTextContent('2');
 
     fireEvent.click(button);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('3');
   });
 
@@ -165,17 +161,17 @@ export const runTests = async (allowProxyUsage = true) => {
       // Confirm that no render happens when changing a non-referenced state value.
       expect(numRendersElmnt).toHaveTextContent('1');
       fireEvent.click(setNrButton);
-
-      await sleep(200);
+      await pause();
       expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '1' : '2');
 
       // Confirm that a render does happen when a referenced state value changes.
       fireEvent.click(incButton);
+      await pause();
       expect(numRendersElmnt).toHaveTextContent(allowProxyUsage ? '2' : '3');
     });
   });
 
-  test('state change with action (via consumer)', () => {
+  test('state change with action (via consumer)', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponentAndConsumer bubba="gump" />
@@ -187,10 +183,11 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
 
     fireEvent.click(button);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('2');
   });
 
-  test('state change with action (via mapped consumer)', () => {
+  test('state change with action (via mapped consumer)', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponentAndMappedConsumer bubba="gump" />
@@ -202,10 +199,11 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
 
     fireEvent.click(button);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('2');
   });
 
-  test('Setting the same value does not yield render', () => {
+  test('Setting the same value does not yield render', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -222,31 +220,40 @@ export const runTests = async (allowProxyUsage = true) => {
     // This will set the value of cheese to 'Cheddar', which is already the value.
     fireEvent.click(resetCheeseButton);
 
+    await pause();
+
     expect(numRendersElmnt).toHaveTextContent('1');
   });
 
-  test('lifecycle actions get called', () => {
-    const numInitCallsA = numInitCalls;
-    const numDestroyCallsA = numDestroyCalls;
-    render(
-      <RootWithProvider>
-        <TestComponent />
-      </RootWithProvider>,
-    );
-    const numInitCallsB = numInitCalls;
-    const numDestroyCallsB = numDestroyCalls;
+  // test('lifecycle actions get called', async () => {
+  //   const numInitCallsA = numInitCalls;
+  //   const numDestroyCallsA = numDestroyCalls;
+  //   render(
+  //     <LifecycleRootWithProvider>
+  //       <TestComponent />
+  //     </LifecycleRootWithProvider>,
+  //   );
 
-    expect(numInitCallsB - numInitCallsA).toBe(1);
-    expect(numDestroyCallsB - numDestroyCallsA).toBe(0);
+  //   await pause();
 
-    cleanup();
+  //   const numInitCallsB = numInitCalls;
+  //   const numDestroyCallsB = numDestroyCalls;
 
-    const numDestroyCallsC = numDestroyCalls;
+  //   expect(numInitCallsB - numInitCallsA).toBe(1);
+  //   expect(numDestroyCallsB - numDestroyCallsA).toBe(0);
 
-    expect(numDestroyCallsC - numDestroyCallsB).toBe(1);
-  });
+  //   await pause();
 
-  test('provider mapping', () => {
+  //   cleanup();
+
+  //   await pause();
+
+  //   const numDestroyCallsC = numDestroyCalls;
+
+  //   expect(numDestroyCallsC - numDestroyCallsB).toBe(1);
+  // });
+
+  test('provider mapping', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -258,11 +265,11 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
 
     fireEvent.click(button);
-
+    await waitDom();
     expect(numElmnt).toHaveTextContent('42');
   });
 
-  test('derived state', () => {
+  test('derived state', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -276,6 +283,8 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numPlus1Elmnt).toHaveTextContent('2');
 
     fireEvent.click(button);
+
+    await waitDom();
 
     expect(numElmnt).toHaveTextContent('42');
     expect(numPlus1Elmnt).toHaveTextContent('43');
@@ -313,7 +322,7 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(errorMessageElement).toHaveTextContent('async state error');
   });
 
-  test('reset state', () => {
+  test('reset state', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -326,13 +335,15 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
 
     fireEvent.click(incButton);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('2');
 
     fireEvent.click(resetButton);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('1');
   });
 
-  test('reset state async', () => {
+  test('reset state async', async () => {
     const result = render(
       <RootWithProvider>
         <TestComponent />
@@ -345,10 +356,28 @@ export const runTests = async (allowProxyUsage = true) => {
     expect(numElmnt).toHaveTextContent('1');
 
     fireEvent.click(incButton);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('2');
 
     fireEvent.click(resetAsyncButton);
+    await waitDom();
     expect(numElmnt).toHaveTextContent('1');
+  });
+
+  test('derived state is always calculated when actions called', async () => {
+    const result = render(
+      <RootWithProvider>
+        <TestComponent />
+      </RootWithProvider>,
+    );
+    const extValElmnt = result.getByTestId('extVal');
+    const incExtValButton = result.getByTestId('incExtVal');
+
+    expect(extValElmnt).toHaveTextContent('0');
+
+    fireEvent.click(incExtValButton);
+    await waitDom();
+    expect(extValElmnt).toHaveTextContent('1');
   });
 
   test('async action with awaited setState()', async () => {
@@ -374,7 +403,7 @@ export const runTests = async (allowProxyUsage = true) => {
        */
       fireEvent.click(setNumsButton);
 
-      await sleep(200);
+      await pause();
 
       expect(numElmnt).toHaveTextContent('8');
 
@@ -398,12 +427,14 @@ export const runTests = async (allowProxyUsage = true) => {
 
       fireEvent.click(button);
 
-      await sleep(200);
+      await pause();
 
       expect(numElmnt).toHaveTextContent('4');
       expect(numRendersElmnt).toHaveTextContent('4');
     });
   });
 
-  const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
+  const pause = (millis = 200) => new Promise(resolve => setTimeout(resolve, millis));
+
+  const waitDom = () => waitForDomChange({ timeout: 200 });
 };

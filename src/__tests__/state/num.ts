@@ -5,6 +5,7 @@ import with42, { With42Props } from './with42';
 interface State {
   num: number;
   numPlus1: number;
+  extVal: number;
 }
 
 interface Actions {
@@ -14,32 +15,26 @@ interface Actions {
   resetAsync(): void;
   setNums(nums: number[]): void;
   increment3TimesAsync(): void;
+  incrementExtVal(): void;
 }
 
 export type NumStateProps = State & Actions;
 
-const initCallListeners: (() => void)[] = [];
-const destroyCallListeners: (() => void)[] = [];
-
-export const onInitCall = (listener: () => void) => initCallListeners.push(listener);
-export const onDestroyCall = (listener: () => void) => destroyCallListeners.push(listener);
+let theExtVal = 0;
 
 export default createState<State, { cheeseState: CheeseStateProps }, Actions, With42Props>(
   'Num',
   {
     num: 1,
     numPlus1: ({ num }) => num + 1,
+    extVal: () => theExtVal,
   },
   {
     cheeseState,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
-      initCallListeners.forEach(listener => listener());
-    },
-
-    destroy() {
-      destroyCallListeners.forEach(listener => listener());
+      theExtVal = 0;
     },
 
     incrementNum() {
@@ -82,6 +77,10 @@ export default createState<State, { cheeseState: CheeseStateProps }, Actions, Wi
       setState({ num: 1 + getState().num });
       await sleep(50);
       setState({ num: 1 + getState().num });
+    },
+
+    incrementExtVal() {
+      theExtVal += 1;
     },
   }),
   with42,

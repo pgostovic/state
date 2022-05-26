@@ -181,6 +181,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
   const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
     const listenersRef = useRef<ChangeListener<S>[]>([]);
     const onChangeCount = useRef(0);
+    const numSetStateCalls = useRef(0);
 
     /**
      * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
@@ -202,6 +203,8 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
             'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
           );
         }
+
+        numSetStateCalls.current += 1;
 
         log('%s - %o', name.toUpperCase(), stateChanges);
 
@@ -249,6 +252,14 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         }
       };
 
+      const implicitActionNames = ['destroy', 'init', 'onChange', 'onError'] as (keyof Actions<S, A>)[];
+
+      const calculateDerivedStateIfNeeded = (actionName: keyof Actions<S, A>, numSetStateCallsBefore: number) => {
+        if (numSetStateCalls.current === numSetStateCallsBefore && !implicitActionNames.includes(actionName)) {
+          setState({});
+        }
+      };
+
       /**
        * Bind the action functions to the enclosing object so other sibling actions may
        * be called by using `this`. For example:
@@ -263,30 +274,32 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
        *   }
        */
       const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
-      const onError = unboundActions.onError;
+      const { onError = () => undefined } = unboundActions;
       const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
       const boundActions: Partial<Actions<S, A>> = {};
       actionNames.forEach(k => {
         const action = unboundActions[k];
-        boundActions[k] = (action as ActionFunction).bind(boundActions) as Partial<Actions<S, A>>[keyof Actions<S, A>];
 
-        if (onError && k !== 'onError') {
-          boundActions[k] = ((...args: never[]): Promise<void> =>
-            new Promise(resolve => {
-              setTimeout(() => {
-                try {
-                  const result = (action as ActionFunction).apply(boundActions, args);
-                  if (result instanceof Promise) {
-                    result.then(resolve).catch(err => onError(err, k));
-                  } else {
-                    resolve(result);
-                  }
-                } catch (err) {
+        boundActions[k] = ((...args: never[]): Promise<void> =>
+          new Promise(resolve => {
+            setTimeout(async () => {
+              try {
+                const numSetStateCallsBefore = numSetStateCalls.current;
+                const result = (action as ActionFunction).apply(boundActions, args);
+                if (result instanceof Promise) {
+                  await result;
+                }
+                resolve();
+                calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
+              } catch (err) {
+                if (k === 'onError') {
+                  throw err;
+                } else {
                   onError(err, k);
                 }
-              }, 0);
-            })) as never;
-        }
+              }
+            }, 0);
+          })) as never;
       });
       return Object.freeze(boundActions as Actions<S, A>);
     }, []);
