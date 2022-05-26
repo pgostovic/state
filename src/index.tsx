@@ -57,7 +57,7 @@ interface GetActionsParams<S, E> {
    * Used to set some someset of the full state.
    * @param subState a subset of the full state
    */
-  setState(subState: Partial<S>): void;
+  setState<T>(subState: SubState<S, T>): void;
   /**
    * Resets the full state to its initial value.
    * @param reinitialize whether or not the `init()` lifecycle method should be called.
@@ -128,6 +128,7 @@ interface InternalStateFactory<S> extends StateFactory<S> {
 
 type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
+type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] : never };
 
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
@@ -197,7 +198,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         return { ...stateBrokerRef.current.state };
       }
 
-      const setState = (stateChanges: Partial<S>) => {
+      function setState<T>(stateChanges: SubState<S, T>) {
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
           throw new Error(
             'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
@@ -242,7 +243,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
             }
           }
         }
-      };
+      }
 
       const resetState = (reinitialize = true) => {
         setState(initialState);
