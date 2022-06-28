@@ -198,7 +198,10 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         return { ...stateBrokerRef.current.state };
       }
 
-      function setState<T>(stateChanges: SubState<S, T>) {
+      //TODO: Should be able to batch these calls. Accumulate state changes and then commit the actual
+      // state change at the end of the event loop.
+
+      function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
           throw new Error(
             'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
@@ -209,7 +212,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
         log('%s - %o', name.toUpperCase(), stateChanges);
 
-        const currentState = stateBrokerRef.current.state;
+        const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
 
         if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
           throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
@@ -246,7 +249,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       }
 
       const resetState = (reinitialize = true) => {
-        setState(initialState);
+        setState(initialState, false);
         const { init } = actions;
         if (reinitialize && init) {
           init();

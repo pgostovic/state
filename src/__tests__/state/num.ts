@@ -3,6 +3,7 @@ import cheeseState, { CheeseStateProps } from './cheese';
 import with42, { With42Props } from './with42';
 
 interface State {
+  foo?: string;
   num: number;
   numPlus1: number;
   extVal: number;
@@ -48,7 +49,7 @@ export default createState<State, { cheeseState: CheeseStateProps }, Actions, Wi
 
       // console.log('=================YO2', getState('cheeseState').cheese);
 
-      setState({ num: num + 1 });
+      setState({ num: num + 1, foo: 'bar' });
     },
 
     setNum42() {

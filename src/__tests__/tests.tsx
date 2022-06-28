@@ -17,6 +17,7 @@ export const runTests = async (allowProxyUsage = true) => {
   const TestComponent: FC = () => {
     const {
       num,
+      foo,
       numPlus1,
       incrementNum,
       increment3TimesAsync,
@@ -47,6 +48,7 @@ export const runTests = async (allowProxyUsage = true) => {
         <div data-testid="cheese">{cheese}</div>
         <div data-testid="extVal">{extVal}</div>
         <div data-testid="numRenders">{numRenders.current}</div>
+        <div data-testid="typeof-foo">{typeof foo}</div>
         {errorAction && <div data-testid="error-action">{errorAction}</div>}
         {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
         <button data-testid="inc-button" onClick={() => incrementNum()}>
@@ -331,16 +333,24 @@ export const runTests = async (allowProxyUsage = true) => {
     const numElmnt = result.getByTestId('num');
     const incButton = result.getByTestId('inc-button');
     const resetButton = result.getByTestId('reset');
+    const typeofFooElmnt = result.getByTestId('typeof-foo');
 
     expect(numElmnt).toHaveTextContent('1');
+    expect(typeofFooElmnt).toHaveTextContent('undefined');
 
     fireEvent.click(incButton);
     await waitDom();
     expect(numElmnt).toHaveTextContent('2');
+    expect(typeofFooElmnt).toHaveTextContent('string');
+
+    // await waitDom();
 
     fireEvent.click(resetButton);
     await waitDom();
     expect(numElmnt).toHaveTextContent('1');
+
+    // Make sure optional `foo` (with no initial value) is set back to undefined.
+    expect(typeofFooElmnt).toHaveTextContent('undefined');
   });
 
   test('reset state async', async () => {
