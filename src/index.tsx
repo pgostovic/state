@@ -202,10 +202,6 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       // state change at the end of the event loop.
 
       function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
-        if (incremental && Object.keys(stateChanges).length === 0) {
-          return;
-        }
-
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
           throw new Error(
             'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
@@ -213,15 +209,6 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
         }
 
         numSetStateCalls.current += 1;
-
-        const colorCat = colorize(name);
-        log(
-          `${colorCat.text} %cSTATE Δ%c - %o`,
-          ...colorCat.args,
-          'font-weight:bold',
-          'font-weight:normal',
-          stateChanges,
-        );
 
         const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
 
@@ -243,6 +230,17 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
           k => deltaState[k] !== currentState[k],
         );
         if (changedKeys.length > 0) {
+          const colorCat = colorize(name);
+          log(
+            `${colorCat.text} %cSTATE Δ%c - %o`,
+            ...colorCat.args,
+            'font-weight:bold',
+            'font-weight:normal',
+            Object.entries(deltaState)
+              .filter(([k]) => changedKeys.includes(k as keyof S))
+              .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+          );
+
           const prevState = stateBrokerRef.current.state;
           stateBrokerRef.current.state = { ...currentState, ...deltaState };
           listenersRef.current.forEach(({ onChangeInternal }) => onChangeInternal(changedKeys));
