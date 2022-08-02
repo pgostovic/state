@@ -202,6 +202,10 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       // state change at the end of the event loop.
 
       function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
+        if (incremental && Object.keys(stateChanges).length === 0) {
+          return;
+        }
+
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
           throw new Error(
             'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
@@ -210,7 +214,14 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
         numSetStateCalls.current += 1;
 
-        log('%s - %o', name.toUpperCase(), stateChanges);
+        const colorCat = colorize(name);
+        log(
+          `${colorCat.text} %cSTATE Δ%c - %o`,
+          ...colorCat.args,
+          'font-weight:bold',
+          'font-weight:normal',
+          stateChanges,
+        );
 
         const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
 
@@ -286,6 +297,15 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
 
         boundActions[k] = ((...args: never[]): Promise<void> =>
           new Promise(resolve => {
+            const colorCat = colorize(name);
+            log(
+              `${colorCat.text} %cACTION%c - %s`,
+              ...colorCat.args,
+              'font-weight:bold',
+              'font-weight:normal',
+              k,
+              ...args,
+            );
             setTimeout(async () => {
               try {
                 const numSetStateCallsBefore = numSetStateCalls.current;
@@ -500,3 +520,17 @@ if (!window.logAllStates) {
     });
   };
 }
+
+const colorize = (s: string): { args: string[]; text: string } => {
+  const charCodeSum = s
+    .split('')
+    .map((char: string) => char.charCodeAt(0))
+    .reduce((sum: number, charCode: number) => sum + charCode, 0);
+
+  const hue = charCodeSum % 360;
+
+  return {
+    args: [`font-weight: bold; color: hsl(${hue}, 100%, 30%)`, 'font-weight: normal; color: inherit'],
+    text: `%c${s}%c`,
+  };
+};
