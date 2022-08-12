@@ -78,7 +78,7 @@ interface StateBroker<S = unknown, A = unknown> {
   removeListener(id: number): void;
 }
 
-export interface StateFactory<S = unknown, A = unknown> {
+export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = never> {
   /**
    * This HOC creates a state provider by wrapping a component. The returned component's
    * interface will be identical to the wrapped component's interface. Descendents of this
@@ -99,7 +99,7 @@ export interface StateFactory<S = unknown, A = unknown> {
    * is also a value in the state for the attribute `lastName`; no render will occur as a
    * result of `lastName` changing.
    */
-  useState(): S & Readonly<A>;
+  useState(): Omit<S, PR> & Readonly<A>;
   /**
    * @deprecated
    * Wrapping a component with this HOC adds the ancestor provider's state attribute keys
@@ -107,7 +107,7 @@ export interface StateFactory<S = unknown, A = unknown> {
    * Note: this HOC is deprecated in favour of the more flexible and unobtrusive `useState()`.
    * @param Wrapped the component to be wrapped.
    */
-  consumer<T = unknown>(Wrapped: ComponentType<T>): ComponentType<Omit<T, keyof (S & A)>>;
+  consumer<T = unknown>(Wrapped: ComponentType<T>): ComponentType<Omit<T, keyof (Omit<S, PR> & A)>>;
   /**
    * @deprecated
    * Similar to `comsumer`, this HOC also wraps a component to provide access to its ancestor
@@ -115,8 +115,10 @@ export interface StateFactory<S = unknown, A = unknown> {
    * of props.
    * @param mapFn
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  map<T = unknown>(mapFn: (s: State<S> & Actions<S, A>) => T): (Wrapped: ComponentType<any>) => ComponentType<any>;
+  map<T = unknown>(
+    mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T,
+  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Wrapped: ComponentType<any>) => ComponentType<any>;
 }
 
 /**
@@ -139,12 +141,12 @@ type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] 
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S extends object, A extends VoidActions<A>, P = {}>(
+export function createState<S extends object, A extends VoidActions<A>, P = {}, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
   getActions: GetActions<S, A, P, {}>,
   mapProvider?: MapProvider<P>,
-): StateFactory<S, A>;
+): StateFactory<S, A, PR>;
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
  * factory can generate multiple providers/consumers.
@@ -155,18 +157,18 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}>(
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S extends object, E, A extends VoidActions<A>, P = {}>(
+export function createState<S extends object, E, A extends VoidActions<A>, P = {}, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
   extStates: Record<keyof E, StateFactory<E[keyof E]>>,
   getActions: GetActions<S, A, P, E>,
   mapProvider?: MapProvider<P>,
-): StateFactory<S, A>;
-export function createState<S extends object, A extends VoidActions<A>, P = {}, E = {}>(
+): StateFactory<S, A, PR>;
+export function createState<S extends object, A extends VoidActions<A>, P = {}, E = {}, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
   ...args: unknown[]
-): StateFactory<S, A> {
+): StateFactory<S, A, PR> {
   const extStates = typeof args[0] === 'object' ? (args[0] as Record<keyof E, StateFactory<E[keyof E]>>) : undefined;
   const getActions = (extStates ? args[1] : args[0]) as GetActions<S, A, P, E>;
   const mapProvider = (extStates ? args[2] : args[1]) as MapProvider<P> | undefined;
@@ -409,7 +411,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     }, []);
 
     if (state && actions) {
-      const stateCopy = { ...state, ...actions };
+      const stateCopy = { ...(state as Omit<S, PR>), ...actions };
       /**
        * Only return a Proxy if the browser supports it. Otherwise just return
        * the whole state. Proxy is required for implicit substate change subscription.
@@ -417,8 +419,8 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       if (allowProxyUsage && typeof Proxy === 'function') {
         const stateProxy = new Proxy(stateCopy, {
           get(target, prop) {
-            refKeys.add(prop as keyof S | keyof A);
-            return target[prop as keyof S | keyof A];
+            refKeys.add(prop as keyof Omit<S, PR> | keyof A);
+            return target[prop as keyof Omit<S, PR> | keyof A];
           },
         });
         return stateProxy;
@@ -440,7 +442,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     } as ComponentType<Omit<T, keyof (S & A)>>;
   };
 
-  function map<T = unknown>(mapFn: (s: State<S> & Actions<S, A>) => T) {
+  function map<T = unknown>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
     return function(Wrapped: ComponentType): ComponentType<T> {
       return function(props: T) {
         const stateAndActions = useStateFn();
@@ -465,7 +467,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
       }
       return stateBroker;
     },
-  } as StateFactory<S, A>;
+  } as StateFactory<S, A, PR>;
 }
 
 const idIter = (function* idGen(): IterableIterator<number> {
