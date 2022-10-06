@@ -298,7 +298,7 @@ export function createState<
                 ...colorCat.args,
                 'font-weight:bold',
                 'font-weight:normal',
-                Object.entries(deltaState)
+                Object.entries(deltaStateCum)
                   .filter(([k]) => changedKeys.includes(k as keyof S))
                   .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
               );
