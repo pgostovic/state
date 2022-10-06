@@ -202,6 +202,10 @@ export function createState<
     const listenersRef = useRef<ChangeListener<S>[]>([]);
     const onChangeCount = useRef(0);
     const numSetStateCalls = useRef(0);
+    const stateChangePidRef = useRef<number>();
+    const accumulatedDeltaStateRef = useRef<Partial<S>>();
+    const accumulatedDeltaStateChangesRef = useRef(0);
+    const markedCurrentStateRef = useRef<S>();
 
     /**
      * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
@@ -216,9 +220,6 @@ export function createState<
         }
         return { ...stateBrokerRef.current.state };
       }
-
-      //TODO: Should be able to batch these calls. Accumulate state changes and then commit the actual
-      // state change at the end of the event loop.
 
       function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
@@ -244,36 +245,73 @@ export function createState<
         // The effective state change is the incoming changes plus the some subset of the derived state.
         const deltaState = { ...stateChanges, ...derivedState };
 
-        // Only notify of a state change if needed. Strict equality on top-level values is the measure.
-        const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
-          k => deltaState[k] !== currentState[k],
-        );
-        if (changedKeys.length > 0) {
-          const colorCat = colorize(name);
-          log(
-            `${colorCat.text} %cSTATE Δ%c - %o`,
-            ...colorCat.args,
-            'font-weight:bold',
-            'font-weight:normal',
-            Object.entries(deltaState)
-              .filter(([k]) => changedKeys.includes(k as keyof S))
-              .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
-          );
+        accumulatedDeltaStateChangesRef.current += 1;
 
-          const prevState = stateBrokerRef.current.state;
-          stateBrokerRef.current.state = { ...currentState, ...deltaState };
-          listenersRef.current.forEach(({ onChangeInternal }) => onChangeInternal(changedKeys));
+        // Affect the internal state change immediately.
+        const prevState = stateBrokerRef.current.state;
+        stateBrokerRef.current.state = { ...currentState, ...deltaState };
 
-          const { onChange } = actions;
-          if (onChange) {
-            try {
-              onChangeCount.current += 1;
-              onChange(changedKeys, prevState);
-            } finally {
-              onChangeCount.current -= 1;
-            }
+        const { onChange } = actions;
+        if (onChange) {
+          try {
+            onChangeCount.current += 1;
+            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
+              k => deltaState[k] !== currentState[k],
+            );
+            onChange(changedKeys, prevState);
+          } finally {
+            onChangeCount.current -= 1;
           }
         }
+
+        /**
+         * Accumulate the state changes. Listeners will be notified at the end of the event loop.
+         * This is to avoid multiple renders when multiple state changes are made in quick succession.
+         */
+        if (accumulatedDeltaStateRef.current) {
+          accumulatedDeltaStateRef.current = { ...accumulatedDeltaStateRef.current, ...deltaState };
+        } else {
+          accumulatedDeltaStateRef.current = deltaState;
+        }
+
+        if (stateChangePidRef.current) {
+          clearTimeout(stateChangePidRef.current);
+        }
+
+        markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
+
+        // Notify listeners of the state change at the end of the event loop.
+        stateChangePidRef.current = window.setTimeout(() => {
+          if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
+            const deltaStateCum = accumulatedDeltaStateRef.current;
+            const markedCurrentState = markedCurrentStateRef.current;
+
+            const changedKeys = (Object.keys(deltaStateCum) as (keyof Partial<S>)[]).filter(
+              k => deltaStateCum[k] !== markedCurrentState[k],
+            );
+
+            if (changedKeys.length > 0) {
+              const colorCat = colorize(name);
+              const numChanges = accumulatedDeltaStateChangesRef.current;
+              log(
+                `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
+                ...colorCat.args,
+                'font-weight:bold',
+                'font-weight:normal',
+                Object.entries(deltaState)
+                  .filter(([k]) => changedKeys.includes(k as keyof S))
+                  .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+              );
+
+              listenersRef.current.forEach(({ onChangeInternal }) => onChangeInternal(changedKeys));
+            }
+
+            stateChangePidRef.current = undefined;
+            markedCurrentStateRef.current = undefined;
+            accumulatedDeltaStateRef.current = undefined;
+            accumulatedDeltaStateChangesRef.current = 0;
+          }
+        }, 0);
       }
 
       const resetState = (reinitialize = true) => {
