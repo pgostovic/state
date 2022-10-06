@@ -1,5 +1,14 @@
 import { createLogger } from '@phnq/log';
-import React, { ComponentType, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  ComponentType,
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 const log = createLogger('@phnq/state');
 
@@ -141,7 +150,7 @@ type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] 
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S extends object, A extends VoidActions<A>, P = {}, PR extends keyof S = never>(
+export function createState<S extends object, A extends VoidActions<A>, P extends {} = {}, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
   getActions: GetActions<S, A, P, {}>,
@@ -157,18 +166,26 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
  * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
-export function createState<S extends object, E, A extends VoidActions<A>, P = {}, PR extends keyof S = never>(
+export function createState<
+  S extends object,
+  E,
+  A extends VoidActions<A>,
+  P extends {} = {},
+  PR extends keyof S = never
+>(
   name: string,
   defaultState: State<S>,
   extStates: Record<keyof E, StateFactory<E[keyof E]>>,
   getActions: GetActions<S, A, P, E>,
   mapProvider?: MapProvider<P>,
 ): StateFactory<S, A, PR>;
-export function createState<S extends object, A extends VoidActions<A>, P = {}, E = {}, PR extends keyof S = never>(
-  name: string,
-  defaultState: State<S>,
-  ...args: unknown[]
-): StateFactory<S, A, PR> {
+export function createState<
+  S extends object,
+  A extends VoidActions<A>,
+  P extends {} = {},
+  E = {},
+  PR extends keyof S = never
+>(name: string, defaultState: State<S>, ...args: unknown[]): StateFactory<S, A, PR> {
   const extStates = typeof args[0] === 'object' ? (args[0] as Record<keyof E, StateFactory<E[keyof E]>>) : undefined;
   const getActions = (extStates ? args[1] : args[0]) as GetActions<S, A, P, E>;
   const mapProvider = (extStates ? args[2] : args[1]) as MapProvider<P> | undefined;
@@ -193,7 +210,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     const actions = useMemo(() => {
       function getState(): S;
       function getState(extStateName: keyof E): E[keyof E];
-      function getState(extStateName?: keyof E) {
+      function getState(extStateName?: keyof E): S | E[keyof E] {
         if (extStateName) {
           return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
         }
@@ -442,7 +459,7 @@ export function createState<S extends object, A extends VoidActions<A>, P = {}, 
     } as ComponentType<Omit<T, keyof (S & A)>>;
   };
 
-  function map<T = unknown>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
+  function map<T extends PropsWithChildren<unknown>>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
     return function(Wrapped: ComponentType): ComponentType<T> {
       return function(props: T) {
         const stateAndActions = useStateFn();
