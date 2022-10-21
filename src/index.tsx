@@ -76,12 +76,20 @@ interface GetActionsParams<S, E> {
 
 interface ChangeListener<S> {
   id: number;
-  onChangeInternal(changedKeys: (keyof S)[]): void;
+  order: number;
+  onChangeInternal(info: {
+    changedKeys: (keyof S)[];
+    stateChanges: Partial<S>;
+    newState: StateBroker<S>['state'];
+    version: number;
+  }): void;
 }
 
 interface StateBroker<S = unknown, A = unknown> {
   found: boolean;
+  version: number; // incremented each time state changes
   state: S;
+  setState(stateChanges: SubState<S, A>, incremental?: boolean): void;
   actions: Readonly<Actions<S, A>>;
   addListener(listener: ChangeListener<S>): void;
   removeListener(id: number): void;
@@ -109,6 +117,17 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    * result of `lastName` changing.
    */
   useState(): Omit<S, PR> & Readonly<A>;
+  /**
+   * This hook provides a low-level way of interacting with the state. State changes are conveyed
+   * via the supplied `onStateChange` callback. The return value is a function that can be used
+   * to affect state changes directly, bypassing the action functions. This direct access to the
+   * state breaks the typical encapsulation conventions/protections afforded by action functions,
+   * so use of this hook is discouraged in all but the most exceptional of circumstances. As the
+   * name implies, this hook is intended to be used for generic synchronization tasks.
+   * @param onStateChange a callback that will be called whenever the state changes.
+   * @returns a function that can be used to affect state changes directly.
+   */
+  useSync(onStateChange: (info: { state: S; changes: Partial<S> }) => void): StateBroker<S>['setState'];
   /**
    * @deprecated
    * Wrapping a component with this HOC adds the ancestor provider's state attribute keys
@@ -175,7 +194,7 @@ export function createState<
 >(
   name: string,
   defaultState: State<S>,
-  extStates: Record<keyof E, StateFactory<E[keyof E]>>,
+  extStates: Record<keyof E, StateFactory>,
   getActions: GetActions<S, A, P, E>,
   mapProvider?: MapProvider<P>,
 ): StateFactory<S, A, PR>;
@@ -207,121 +226,136 @@ export function createState<
     const accumulatedDeltaStateChangesRef = useRef(0);
     const markedCurrentStateRef = useRef<S>();
 
+    function getState(): S;
+    function getState(extStateName: keyof E): E[keyof E];
+    function getState(extStateName?: keyof E): S | E[keyof E] {
+      if (extStateName) {
+        return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
+      }
+      return { ...stateBrokerRef.current.state };
+    }
+
+    const resetState = (reinitialize = true) => {
+      setState(initialState, false);
+      const { init } = actions;
+      if (reinitialize && init) {
+        init();
+      }
+    };
+
+    function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
+      if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
+        throw new Error(
+          'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
+        );
+      }
+
+      numSetStateCalls.current += 1;
+
+      const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
+
+      if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
+        throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+      }
+
+      // Calculate the derived state from current state plus the incoming changes.
+      const derivedState = stateDerivers.reduce(
+        (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
+        {} as Partial<S>,
+      );
+
+      // The effective state change is the incoming changes plus the some subset of the derived state.
+      const deltaState = { ...stateChanges, ...derivedState };
+
+      accumulatedDeltaStateChangesRef.current += 1;
+
+      // Affect the internal state change immediately.
+      const prevState = stateBrokerRef.current.state;
+      stateBrokerRef.current.state = { ...currentState, ...deltaState };
+
+      if (Object.keys(deltaState).some(k => deltaState[k as keyof S] !== prevState[k as keyof S])) {
+        stateBrokerRef.current.version += 1;
+      }
+
+      const { onChange } = actions;
+      if (onChange) {
+        try {
+          onChangeCount.current += 1;
+          const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
+            k => deltaState[k] !== currentState[k],
+          );
+          onChange(changedKeys, prevState);
+        } finally {
+          onChangeCount.current -= 1;
+        }
+      }
+
+      /**
+       * Accumulate the state changes. Listeners will be notified at the end of the event loop.
+       * This is to avoid multiple renders when multiple state changes are made in quick succession.
+       */
+      if (accumulatedDeltaStateRef.current) {
+        accumulatedDeltaStateRef.current = { ...accumulatedDeltaStateRef.current, ...deltaState };
+      } else {
+        accumulatedDeltaStateRef.current = deltaState;
+      }
+
+      if (stateChangePidRef.current) {
+        clearTimeout(stateChangePidRef.current);
+      }
+
+      markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
+
+      // Notify listeners of the state change at the end of the event loop.
+      stateChangePidRef.current = window.setTimeout(() => {
+        if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
+          const deltaStateCum = accumulatedDeltaStateRef.current;
+          const markedCurrentState = markedCurrentStateRef.current;
+
+          const stateChanges = Object.entries(deltaStateCum)
+            .filter(([k]) => {
+              const key = k as keyof Partial<S>;
+              return deltaStateCum[key] !== markedCurrentState[key];
+            })
+            .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
+
+          const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
+
+          if (changedKeys.length > 0) {
+            const colorCat = colorize(name);
+            const numChanges = accumulatedDeltaStateChangesRef.current;
+            log(
+              `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
+              ...colorCat.args,
+              'font-weight:bold',
+              'font-weight:normal',
+              Object.entries(deltaStateCum)
+                .filter(([k]) => changedKeys.includes(k as keyof S))
+                .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+            );
+
+            listenersRef.current.forEach(({ onChangeInternal }) =>
+              onChangeInternal({
+                changedKeys,
+                stateChanges,
+                newState: stateBrokerRef.current.state,
+                version: stateBrokerRef.current.version,
+              }),
+            );
+          }
+
+          stateChangePidRef.current = undefined;
+          markedCurrentStateRef.current = undefined;
+          accumulatedDeltaStateRef.current = undefined;
+          accumulatedDeltaStateChangesRef.current = 0;
+        }
+      }, 0);
+    }
     /**
      * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
      * in `setState()`.
      */
     const actions = useMemo(() => {
-      function getState(): S;
-      function getState(extStateName: keyof E): E[keyof E];
-      function getState(extStateName?: keyof E): S | E[keyof E] {
-        if (extStateName) {
-          return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
-        }
-        return { ...stateBrokerRef.current.state };
-      }
-
-      function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
-        if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
-          throw new Error(
-            'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
-          );
-        }
-
-        numSetStateCalls.current += 1;
-
-        const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
-
-        if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
-          throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
-        }
-
-        // Calculate the derived state from current state plus the incoming changes.
-        const derivedState = stateDerivers.reduce(
-          (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
-          {} as Partial<S>,
-        );
-
-        // The effective state change is the incoming changes plus the some subset of the derived state.
-        const deltaState = { ...stateChanges, ...derivedState };
-
-        accumulatedDeltaStateChangesRef.current += 1;
-
-        // Affect the internal state change immediately.
-        const prevState = stateBrokerRef.current.state;
-        stateBrokerRef.current.state = { ...currentState, ...deltaState };
-
-        const { onChange } = actions;
-        if (onChange) {
-          try {
-            onChangeCount.current += 1;
-            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
-              k => deltaState[k] !== currentState[k],
-            );
-            onChange(changedKeys, prevState);
-          } finally {
-            onChangeCount.current -= 1;
-          }
-        }
-
-        /**
-         * Accumulate the state changes. Listeners will be notified at the end of the event loop.
-         * This is to avoid multiple renders when multiple state changes are made in quick succession.
-         */
-        if (accumulatedDeltaStateRef.current) {
-          accumulatedDeltaStateRef.current = { ...accumulatedDeltaStateRef.current, ...deltaState };
-        } else {
-          accumulatedDeltaStateRef.current = deltaState;
-        }
-
-        if (stateChangePidRef.current) {
-          clearTimeout(stateChangePidRef.current);
-        }
-
-        markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
-
-        // Notify listeners of the state change at the end of the event loop.
-        stateChangePidRef.current = window.setTimeout(() => {
-          if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
-            const deltaStateCum = accumulatedDeltaStateRef.current;
-            const markedCurrentState = markedCurrentStateRef.current;
-
-            const changedKeys = (Object.keys(deltaStateCum) as (keyof Partial<S>)[]).filter(
-              k => deltaStateCum[k] !== markedCurrentState[k],
-            );
-
-            if (changedKeys.length > 0) {
-              const colorCat = colorize(name);
-              const numChanges = accumulatedDeltaStateChangesRef.current;
-              log(
-                `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
-                ...colorCat.args,
-                'font-weight:bold',
-                'font-weight:normal',
-                Object.entries(deltaStateCum)
-                  .filter(([k]) => changedKeys.includes(k as keyof S))
-                  .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
-              );
-
-              listenersRef.current.forEach(({ onChangeInternal }) => onChangeInternal(changedKeys));
-            }
-
-            stateChangePidRef.current = undefined;
-            markedCurrentStateRef.current = undefined;
-            accumulatedDeltaStateRef.current = undefined;
-            accumulatedDeltaStateChangesRef.current = 0;
-          }
-        }, 0);
-      }
-
-      const resetState = (reinitialize = true) => {
-        setState(initialState, false);
-        const { init } = actions;
-        if (reinitialize && init) {
-          init();
-        }
-      };
-
       const implicitActionNames = ['destroy', 'init', 'onChange', 'onError'] as (keyof Actions<S, A>)[];
 
       const calculateDerivedStateIfNeeded = (actionName: keyof Actions<S, A>, numSetStateCallsBefore: number) => {
@@ -395,10 +429,12 @@ export function createState<
     // Set up the StateBroker for the current provider.
     const stateBrokerRef = useRef<StateBroker<S, A>>({
       found: true,
+      version: 0,
       state: initialState,
+      setState,
       actions,
       addListener(listener: ChangeListener<S>) {
-        listenersRef.current = [...listenersRef.current, listener];
+        listenersRef.current = [...listenersRef.current, listener].sort((l1, l2) => l1.order - l2.order);
       },
       removeListener(theId: number) {
         listenersRef.current = listenersRef.current.filter(({ id }) => id !== theId);
@@ -416,7 +452,7 @@ export function createState<
 
     // Add/remove current StateBroker on mount/unmount.
     useEffect(() => {
-      allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current]];
+      allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current as StateBroker]];
       log('Mounted provider: ', name);
       return () => {
         allStateBrokers = allStateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
@@ -431,14 +467,45 @@ export function createState<
     );
   };
 
-  const Context = createContext<Partial<StateBroker<S, A>>>({
+  const Context = createContext<StateBroker<S, A>>({
     found: false,
+    version: 0,
     state: initialState,
+    setState: () => undefined,
+    actions: {} as Actions<S, A>,
+    addListener: () => undefined,
+    removeListener: () => undefined,
   });
+
+  const useSync: StateFactory<S>['useSync'] = onStateChange => {
+    const idRef = useRef(idIter.next().value);
+    const { found, addListener, removeListener, setState } = useContext(Context);
+
+    if (!found) {
+      throw new Error(
+        `No provider found for state '${name}'. The current component must be a descendent of a '${name}' state provider.`,
+      );
+    }
+
+    useEffect(() => {
+      addListener({
+        id: idRef.current,
+        order: 10,
+        onChangeInternal({ stateChanges, newState }) {
+          onStateChange({ changes: stateChanges, state: newState });
+        },
+      });
+      return () => {
+        removeListener(idRef.current);
+      };
+    });
+
+    return setState;
+  };
 
   const useStateFn = (alwaysRenderOnChange = false) => {
     const idRef = useRef(idIter.next().value);
-    const { found, state, actions, addListener, removeListener } = useContext(Context);
+    const { found, version, state, actions, addListener, removeListener } = useContext(Context);
     const [, render] = useState(false);
 
     if (!found) {
@@ -447,46 +514,48 @@ export function createState<
       );
     }
 
-    const refKeys = new Set<keyof S | keyof A>();
+    const referencedKeys = new Set<keyof S | keyof A>();
 
     useEffect(() => {
-      if (addListener && removeListener) {
-        addListener({
-          id: idRef.current,
-          onChangeInternal(changedKeys) {
-            if (alwaysRenderOnChange || changedKeys.some(k => refKeys.has(k))) {
-              render(r => !r);
-            }
-          },
-        });
-        return () => {
-          removeListener(idRef.current);
-        };
-      }
-    }, []);
+      addListener({
+        id: idRef.current,
+        order: 0,
+        onChangeInternal({ changedKeys, version: newVersion }) {
+          /**
+           * A state change will cause a re-render if:
+           * 1. The `alwaysRenderOnChange` flag is set to true.
+           * 2. A state key referenced by the enclosing component has changed and the new state version has changed.
+           *
+           * Note: The purpose of the `version` check is to prevent an unnecessary re-render. It is possible that
+           * the enclosing component may have rendered independently of the current state changing, which would
+           * yield a fresh state before the change notification was able to run.
+           */
+          if (alwaysRenderOnChange || (changedKeys.some(k => referencedKeys.has(k)) && newVersion > version)) {
+            render(r => !r);
+          }
+        },
+      });
+      return () => {
+        removeListener(idRef.current);
+      };
+    }, [version]);
 
-    if (state && actions) {
-      const stateCopy = { ...(state as Omit<S, PR>), ...actions };
-      /**
-       * Only return a Proxy if the browser supports it. Otherwise just return
-       * the whole state. Proxy is required for implicit substate change subscription.
-       */
-      if (allowProxyUsage && typeof Proxy === 'function') {
-        const stateProxy = new Proxy(stateCopy, {
-          get(target, prop) {
-            refKeys.add(prop as keyof Omit<S, PR> | keyof A);
-            return target[prop as keyof Omit<S, PR> | keyof A];
-          },
-        });
-        return stateProxy;
-      } else {
-        Object.keys(stateCopy).forEach(k => refKeys.add(k as keyof S | keyof A));
-        return stateCopy;
-      }
+    const stateCopy = { ...(state as Omit<S, PR>), ...actions };
+    /**
+     * Only return a Proxy if the browser supports it. Otherwise just return
+     * the whole state. Proxy is required for implicit substate change subscription.
+     */
+    if (allowProxyUsage && typeof Proxy === 'function') {
+      const stateProxy = new Proxy(stateCopy, {
+        get(target, prop) {
+          referencedKeys.add(prop as keyof Omit<S, PR> | keyof A);
+          return target[prop as keyof Omit<S, PR> | keyof A];
+        },
+      });
+      return stateProxy;
     } else {
-      throw new Error(
-        'Something strange happened! The StateBroker was found, but one or both of `state` and `actions` was not set.',
-      );
+      Object.keys(stateCopy).forEach(k => referencedKeys.add(k as keyof S | keyof A));
+      return stateCopy;
     }
   };
 
@@ -512,6 +581,7 @@ export function createState<
       ? (Wrapped: ComponentType<P>) => mapProvider<typeof provider>(provider(props => <Wrapped {...props} />))
       : provider) as StateFactory<S, A>['provider'],
     map,
+    useSync,
     useState: useStateFn,
     useStateBroker: () => {
       const stateBroker = useContext(Context);
