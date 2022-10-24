@@ -222,6 +222,7 @@ export function createState<
     const onChangeCount = useRef(0);
     const numSetStateCalls = useRef(0);
     const stateChangePidRef = useRef<number>();
+    const isInitializedRef = useRef(false);
     const accumulatedDeltaStateRef = useRef<Partial<S>>();
     const accumulatedDeltaStateChangesRef = useRef(0);
     const markedCurrentStateRef = useRef<S>();
@@ -278,7 +279,7 @@ export function createState<
       }
 
       const { onChange } = actions;
-      if (onChange) {
+      if (onChange && isInitializedRef.current) {
         try {
           onChangeCount.current += 1;
           const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
@@ -422,8 +423,14 @@ export function createState<
       const { init, destroy } = actions;
       if (init) {
         init();
+        isInitializedRef.current = true;
       }
-      return destroy;
+      return () => {
+        isInitializedRef.current = false;
+        if (destroy) {
+          destroy();
+        }
+      };
     }, []);
 
     // Set up the StateBroker for the current provider.
