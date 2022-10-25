@@ -147,6 +147,8 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
     mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T,
   ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (Wrapped: ComponentType<any>) => ComponentType<any>;
+
+  // extend();
 }
 
 /**
@@ -154,6 +156,17 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
  */
 interface InternalStateFactory<S> extends StateFactory<S> {
   useStateBroker(): StateBroker<S>;
+}
+
+interface Options<E, P> {
+  /**
+   * Named imported state factories.
+   */
+  imported?: Record<keyof E, StateFactory>;
+  /**
+   * function for adding behaviour to the provider in the form of a HOC.
+   */
+  mapProvider?: MapProvider<P>;
 }
 
 type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<S, A>;
@@ -166,23 +179,20 @@ type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] 
  * @param name The name of the state. Only used for logging.
  * @param defaultState The initial value of the state, and derived state functions.
  * @param getActions Function that returns the action functions.
- * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
 export function createState<S extends object, A extends VoidActions<A>, P extends {} = {}, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
   getActions: GetActions<S, A, P, {}>,
-  mapProvider?: MapProvider<P>,
 ): StateFactory<S, A, PR>;
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
  * factory can generate multiple providers/consumers.
  * @param name The name of the state. Only used for logging.
  * @param defaultState The initial value of the state, and derived state functions.
- * @param extStates Named external state factories.
+ * @param options Options for the state.
  * @param getActions Function that returns the action functions.
- * @param mapProvider Optional function for adding behaviour to the provider in the form of a HOC.
  * @returns a state factory.
  */
 export function createState<
@@ -194,10 +204,10 @@ export function createState<
 >(
   name: string,
   defaultState: State<S>,
-  extStates: Record<keyof E, StateFactory>,
+  options: Options<E, P>,
   getActions: GetActions<S, A, P, E>,
-  mapProvider?: MapProvider<P>,
 ): StateFactory<S, A, PR>;
+
 export function createState<
   S extends object,
   A extends VoidActions<A>,
@@ -205,9 +215,10 @@ export function createState<
   E = {},
   PR extends keyof S = never
 >(name: string, defaultState: State<S>, ...args: unknown[]): StateFactory<S, A, PR> {
-  const extStates = typeof args[0] === 'object' ? (args[0] as Record<keyof E, StateFactory<E[keyof E]>>) : undefined;
-  const getActions = (extStates ? args[1] : args[0]) as GetActions<S, A, P, E>;
-  const mapProvider = (extStates ? args[2] : args[1]) as MapProvider<P> | undefined;
+  const { imported: importedStates, mapProvider } = (typeof args[0] === 'object' ? args[0] : {}) as Options<E, P>;
+
+  const getActions = args[args.length - 1] as GetActions<S, A, P, E>;
+
   const { stateDerivers, initialState } = processDefaultState(defaultState);
 
   const derivedProperties = stateDerivers.map(({ key }) => key);
@@ -450,10 +461,10 @@ export function createState<
 
     // Obtain references to external StateBroker instances.
     const extStateBrokers = {} as Record<keyof E, StateBroker<E[keyof E]>>;
-    if (extStates) {
+    if (importedStates) {
       let k: keyof E;
-      for (k in extStates) {
-        extStateBrokers[k] = (extStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
+      for (k in importedStates) {
+        extStateBrokers[k] = (importedStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
       }
     }
 

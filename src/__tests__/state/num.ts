@@ -31,7 +31,8 @@ export default createState<State, { cheeseState: CheeseStateProps }, Actions, Wi
     extVal: () => theExtVal,
   },
   {
-    cheeseState,
+    imported: { cheeseState },
+    mapProvider: with42,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {
@@ -84,7 +85,6 @@ export default createState<State, { cheeseState: CheeseStateProps }, Actions, Wi
       theExtVal += 1;
     },
   }),
-  with42,
 );
 
 const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
