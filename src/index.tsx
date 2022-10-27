@@ -17,6 +17,10 @@ export const setAllowProxyUsage = (allow: boolean) => {
   allowProxyUsage = allow;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GenericObject = Record<string, any>;
+type GenericFunction = (...args: unknown[]) => unknown;
+
 type State<S> = {
   [K in keyof S]: S[K] | ((state: Omit<S, K>) => S[K]);
 } & { [key: string]: unknown };
@@ -41,8 +45,25 @@ interface ImplicitActions<S, A> {
 
   /**
    * This gets called after state changes have been made.
+   * @param changedKeys the state keys whose values changed.
+   * @param changeInfo information about the change.
    */
-  onChange?(changedKeys: (keyof S)[], prevState: S): void;
+  onChange?(changedKeys: (keyof S)[], changeInfo: StateChangeInfo<S>): void;
+}
+
+interface StateChangeInfo<S> {
+  /**
+   * The previous state -- i.e. before the state changes.
+   */
+  prevState: S;
+  /**
+   * Identifier of the change initiator. This is typically undefined which indicates an internal state change.
+   */
+  source?: string;
+  /**
+   * Whether the state change was triggered externally.
+   */
+  viaExternal: boolean;
 }
 
 type Actions<S, A> = A & ImplicitActions<S, A>;
@@ -89,10 +110,15 @@ interface StateBroker<S = unknown, A = unknown> {
   found: boolean;
   version: number; // incremented each time state changes
   state: S;
-  setState(stateChanges: SubState<S, A>, incremental?: boolean): void;
+  setState(stateChanges: SubState<S, A>, options?: SetStateOptions): void;
   actions: Readonly<Actions<S, A>>;
   addListener(listener: ChangeListener<S>): void;
   removeListener(id: number): void;
+}
+
+interface SetStateOptions {
+  incremental?: boolean;
+  source?: string;
 }
 
 export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = never> {
@@ -103,7 +129,7 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    * `useState()` hook or the (deprecated) `consumer` HOC.
    * @param Wrapped the component to be wrapped.
    */
-  provider: <T extends {}>(Wrapped: ComponentType<T>) => ComponentType<T>;
+  provider: <T extends GenericObject>(Wrapped: ComponentType<T>) => ComponentType<T>;
   /**
    * This hook returns the complete state and actions of its nearest counterpart provider
    * ancestor in the component hierarchy. Referencing an attribute in the returned state
@@ -127,7 +153,7 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    * @param onStateChange a callback that will be called whenever the state changes.
    * @returns a function that can be used to affect state changes directly.
    */
-  useSync(onStateChange: (info: { state: S; changes: Partial<S> }) => void): StateBroker<S>['setState'];
+  useSync(onStateChange: (info: { state: S; changes: Partial<S> }) => void): StateBroker<S, A>['setState'];
   /**
    * @deprecated
    * Wrapping a component with this HOC adds the ancestor provider's state attribute keys
@@ -147,8 +173,6 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
     mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T,
   ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (Wrapped: ComponentType<any>) => ComponentType<any>;
-
-  // extend();
 }
 
 /**
@@ -158,7 +182,7 @@ interface InternalStateFactory<S> extends StateFactory<S> {
   useStateBroker(): StateBroker<S>;
 }
 
-interface Options<E, P> {
+interface Options<E = unknown, P = unknown> {
   /**
    * Named imported state factories.
    */
@@ -169,7 +193,9 @@ interface Options<E, P> {
   mapProvider?: MapProvider<P>;
 }
 
-type GetActions<S, A, P, E> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<S, A>;
+type GetActions<S, A, P extends GenericObject = GenericObject, E extends GenericObject = GenericObject> = (
+  getActionsParams: GetActionsParams<S, E> & P,
+) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
 type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] : never };
 
@@ -181,11 +207,12 @@ type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] 
  * @param getActions Function that returns the action functions.
  * @returns a state factory.
  */
-export function createState<S extends object, A extends VoidActions<A>, P extends {} = {}, PR extends keyof S = never>(
+export function createState<S extends object, A extends VoidActions<A>, PR extends keyof S = never>(
   name: string,
   defaultState: State<S>,
-  getActions: GetActions<S, A, P, {}>,
+  getActions: GetActions<S, A, GenericObject, GenericObject>,
 ): StateFactory<S, A, PR>;
+
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
  * factory can generate multiple providers/consumers.
@@ -197,27 +224,31 @@ export function createState<S extends object, A extends VoidActions<A>, P extend
  */
 export function createState<
   S extends object,
-  E,
   A extends VoidActions<A>,
-  P extends {} = {},
-  PR extends keyof S = never
+  P extends GenericObject = GenericObject,
+  E extends GenericObject = GenericObject,
+  PR extends keyof S = never,
 >(
   name: string,
-  defaultState: State<S>,
   options: Options<E, P>,
+  defaultState: State<S>,
   getActions: GetActions<S, A, P, E>,
 ): StateFactory<S, A, PR>;
 
 export function createState<
   S extends object,
   A extends VoidActions<A>,
-  P extends {} = {},
-  E = {},
-  PR extends keyof S = never
->(name: string, defaultState: State<S>, ...args: unknown[]): StateFactory<S, A, PR> {
-  const { imported: importedStates, mapProvider } = (typeof args[0] === 'object' ? args[0] : {}) as Options<E, P>;
+  P extends GenericObject = GenericObject,
+  E extends GenericObject = GenericObject,
+  PR extends keyof S = never,
+>(name: string, ...args: unknown[]): StateFactory<S, A, PR> {
+  const [options, defaultState, getActions] = (args.length === 2 ? [{}, ...args] : args) as [
+    Options<E, P>,
+    State<S>,
+    GetActions<S, A, P, E>,
+  ];
 
-  const getActions = args[args.length - 1] as GetActions<S, A, P, E>;
+  const { imported: importedStates, mapProvider } = options;
 
   const { stateDerivers, initialState } = processDefaultState(defaultState);
 
@@ -228,262 +259,268 @@ export function createState<
   /**
    * State Provider
    */
-  const provider = <T extends {}>(Wrapped: ComponentType<T>): ComponentType<T> => (props: T) => {
-    const listenersRef = useRef<ChangeListener<S>[]>([]);
-    const onChangeCount = useRef(0);
-    const numSetStateCalls = useRef(0);
-    const stateChangePidRef = useRef<number>();
-    const isInitializedRef = useRef(false);
-    const accumulatedDeltaStateRef = useRef<Partial<S>>();
-    const accumulatedDeltaStateChangesRef = useRef(0);
-    const markedCurrentStateRef = useRef<S>();
+  const provider =
+    <T extends GenericObject>(Wrapped: ComponentType<T>): ComponentType<T> =>
+    (props: T) => {
+      const listenersRef = useRef<ChangeListener<S>[]>([]);
+      const onChangeCount = useRef(0);
+      const numSetStateCalls = useRef(0);
+      const stateChangePidRef = useRef<number>();
+      const isInitializedRef = useRef(false);
+      const accumulatedDeltaStateRef = useRef<Partial<S>>();
+      const accumulatedDeltaStateChangesRef = useRef(0);
+      const markedCurrentStateRef = useRef<S>();
 
-    function getState(): S;
-    function getState(extStateName: keyof E): E[keyof E];
-    function getState(extStateName?: keyof E): S | E[keyof E] {
-      if (extStateName) {
-        return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
-      }
-      return { ...stateBrokerRef.current.state };
-    }
-
-    const resetState = (reinitialize = true) => {
-      setState(initialState, false);
-      const { init } = actions;
-      if (reinitialize && init) {
-        init();
-      }
-    };
-
-    function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
-      if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
-        throw new Error(
-          'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
-        );
+      function getState(): S;
+      function getState(extStateName: keyof E): E[keyof E];
+      function getState(extStateName?: keyof E): S | E[keyof E] {
+        if (extStateName) {
+          return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
+        }
+        return { ...stateBrokerRef.current.state };
       }
 
-      numSetStateCalls.current += 1;
+      const resetState = (reinitialize = true) => {
+        setState(initialState, { incremental: false });
+        const { init } = actions;
+        if (reinitialize && init) {
+          init();
+        }
+      };
 
-      const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
+      // const setState: StateBroker<S, A>['setState'] = (stateChanges, incremental) => {
+      const setState = <T,>(stateChanges: SubState<S, T>, options: SetStateOptions = {}) => {
+        const { incremental = true, source } = options;
 
-      if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
-        throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
-      }
-
-      // Calculate the derived state from current state plus the incoming changes.
-      const derivedState = stateDerivers.reduce(
-        (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
-        {} as Partial<S>,
-      );
-
-      // The effective state change is the incoming changes plus the some subset of the derived state.
-      const deltaState = { ...stateChanges, ...derivedState };
-
-      accumulatedDeltaStateChangesRef.current += 1;
-
-      // Affect the internal state change immediately.
-      const prevState = stateBrokerRef.current.state;
-      stateBrokerRef.current.state = { ...currentState, ...deltaState };
-
-      if (Object.keys(deltaState).some(k => deltaState[k as keyof S] !== prevState[k as keyof S])) {
-        stateBrokerRef.current.version += 1;
-      }
-
-      const { onChange } = actions;
-      if (onChange && isInitializedRef.current) {
-        try {
-          onChangeCount.current += 1;
-          const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
-            k => deltaState[k] !== currentState[k],
+        // function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
+        if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
+          throw new Error(
+            'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
           );
-          onChange(changedKeys, prevState);
-        } finally {
-          onChangeCount.current -= 1;
         }
-      }
 
-      /**
-       * Accumulate the state changes. Listeners will be notified at the end of the event loop.
-       * This is to avoid multiple renders when multiple state changes are made in quick succession.
-       */
-      if (accumulatedDeltaStateRef.current) {
-        accumulatedDeltaStateRef.current = { ...accumulatedDeltaStateRef.current, ...deltaState };
-      } else {
-        accumulatedDeltaStateRef.current = deltaState;
-      }
+        numSetStateCalls.current += 1;
 
-      if (stateChangePidRef.current) {
-        clearTimeout(stateChangePidRef.current);
-      }
+        const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
 
-      markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
+        if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
+          throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+        }
 
-      // Notify listeners of the state change at the end of the event loop.
-      stateChangePidRef.current = window.setTimeout(() => {
-        if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
-          const deltaStateCum = accumulatedDeltaStateRef.current;
-          const markedCurrentState = markedCurrentStateRef.current;
+        // Calculate the derived state from current state plus the incoming changes.
+        const derivedState = stateDerivers.reduce(
+          (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
+          {} as Partial<S>,
+        );
 
-          const stateChanges = Object.entries(deltaStateCum)
-            .filter(([k]) => {
-              const key = k as keyof Partial<S>;
-              return deltaStateCum[key] !== markedCurrentState[key];
-            })
-            .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
+        // The effective state change is the incoming changes plus the some subset of the derived state.
+        const deltaState = { ...stateChanges, ...derivedState };
 
-          const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
+        accumulatedDeltaStateChangesRef.current += 1;
 
-          if (changedKeys.length > 0) {
-            const colorCat = colorize(name);
-            const numChanges = accumulatedDeltaStateChangesRef.current;
-            log(
-              `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
-              ...colorCat.args,
-              'font-weight:bold',
-              'font-weight:normal',
-              Object.entries(deltaStateCum)
-                .filter(([k]) => changedKeys.includes(k as keyof S))
-                .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+        // Affect the internal state change immediately.
+        const prevState = stateBrokerRef.current.state;
+        stateBrokerRef.current.state = { ...currentState, ...deltaState };
+
+        if (Object.keys(deltaState).some(k => deltaState[k as keyof S] !== prevState[k as keyof S])) {
+          stateBrokerRef.current.version += 1;
+        }
+
+        const { onChange } = actions;
+        if (onChange && isInitializedRef.current) {
+          try {
+            onChangeCount.current += 1;
+            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
+              k => deltaState[k] !== currentState[k],
             );
-
-            listenersRef.current.forEach(({ onChangeInternal }) =>
-              onChangeInternal({
-                changedKeys,
-                stateChanges,
-                newState: stateBrokerRef.current.state,
-                version: stateBrokerRef.current.version,
-              }),
-            );
+            onChange(changedKeys, { prevState, source, viaExternal: !!source });
+          } finally {
+            onChangeCount.current -= 1;
           }
-
-          stateChangePidRef.current = undefined;
-          markedCurrentStateRef.current = undefined;
-          accumulatedDeltaStateRef.current = undefined;
-          accumulatedDeltaStateChangesRef.current = 0;
         }
-      }, 0);
-    }
-    /**
-     * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
-     * in `setState()`.
-     */
-    const actions = useMemo(() => {
-      const implicitActionNames = ['destroy', 'init', 'onChange', 'onError'] as (keyof Actions<S, A>)[];
 
-      const calculateDerivedStateIfNeeded = (actionName: keyof Actions<S, A>, numSetStateCallsBefore: number) => {
-        if (numSetStateCalls.current === numSetStateCallsBefore && !implicitActionNames.includes(actionName)) {
-          setState({});
+        /**
+         * Accumulate the state changes. Listeners will be notified at the end of the event loop.
+         * This is to avoid multiple renders when multiple state changes are made in quick succession.
+         */
+        if (accumulatedDeltaStateRef.current) {
+          accumulatedDeltaStateRef.current = { ...accumulatedDeltaStateRef.current, ...deltaState };
+        } else {
+          accumulatedDeltaStateRef.current = deltaState;
         }
+
+        if (stateChangePidRef.current) {
+          clearTimeout(stateChangePidRef.current);
+        }
+
+        markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
+
+        // Notify listeners of the state change at the end of the event loop.
+        stateChangePidRef.current = window.setTimeout(() => {
+          if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
+            const deltaStateCum = accumulatedDeltaStateRef.current;
+            const markedCurrentState = markedCurrentStateRef.current;
+
+            const stateChanges = Object.entries(deltaStateCum)
+              .filter(([k]) => {
+                const key = k as keyof Partial<S>;
+                return deltaStateCum[key] !== markedCurrentState[key];
+              })
+              .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
+
+            const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
+
+            if (changedKeys.length > 0) {
+              const colorCat = colorize(name);
+              const numChanges = accumulatedDeltaStateChangesRef.current;
+              log(
+                `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
+                ...colorCat.args,
+                'font-weight:bold',
+                'font-weight:normal',
+                Object.entries(deltaStateCum)
+                  .filter(([k]) => changedKeys.includes(k as keyof S))
+                  .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+              );
+
+              listenersRef.current.forEach(({ onChangeInternal }) =>
+                onChangeInternal({
+                  changedKeys,
+                  stateChanges,
+                  newState: stateBrokerRef.current.state,
+                  version: stateBrokerRef.current.version,
+                }),
+              );
+            }
+
+            stateChangePidRef.current = undefined;
+            markedCurrentStateRef.current = undefined;
+            accumulatedDeltaStateRef.current = undefined;
+            accumulatedDeltaStateChangesRef.current = 0;
+          }
+        }, 0);
       };
-
       /**
-       * Bind the action functions to the enclosing object so other sibling actions may
-       * be called by using `this`. For example:
-       *
-       *   someAction() {
-       *     doSomething();
-       *   },
-       *
-       *   someOtherAction() {
-       *     this.someAction();
-       *     doSomeOtherThing();
-       *   }
+       * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
+       * in `setState()`.
        */
-      const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
-      const { onError = () => undefined } = unboundActions;
-      const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
-      const boundActions: Partial<Actions<S, A>> = {};
-      actionNames.forEach(k => {
-        const action = unboundActions[k];
+      const actions = useMemo(() => {
+        const implicitActionNames = ['destroy', 'init', 'onChange', 'onError'] as (keyof Actions<S, A>)[];
 
-        boundActions[k] = ((...args: never[]): Promise<void> =>
-          new Promise(resolve => {
-            const colorCat = colorize(name);
-            log(
-              `${colorCat.text} %cACTION%c - %s`,
-              ...colorCat.args,
-              'font-weight:bold',
-              'font-weight:normal',
-              k,
-              ...args,
-            );
-            setTimeout(async () => {
-              try {
-                const numSetStateCallsBefore = numSetStateCalls.current;
-                const result = (action as ActionFunction).apply(boundActions, args);
-                if (result instanceof Promise) {
-                  await result;
-                }
-                resolve();
-                calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
-              } catch (err) {
-                if (k === 'onError') {
-                  throw err;
-                } else {
-                  onError(err, k);
-                }
-              }
-            }, 0);
-          })) as never;
-      });
-      return Object.freeze(boundActions as Actions<S, A>);
-    }, []);
+        const calculateDerivedStateIfNeeded = (actionName: keyof Actions<S, A>, numSetStateCallsBefore: number) => {
+          if (numSetStateCalls.current === numSetStateCallsBefore && !implicitActionNames.includes(actionName)) {
+            setState({});
+          }
+        };
 
-    // Call init() on mount, destroy() on unmount.
-    useEffect(() => {
-      const { init, destroy } = actions;
-      if (init) {
-        init();
-        isInitializedRef.current = true;
-      }
-      return () => {
-        isInitializedRef.current = false;
-        if (destroy) {
-          destroy();
+        /**
+         * Bind the action functions to the enclosing object so other sibling actions may
+         * be called by using `this`. For example:
+         *
+         *   someAction() {
+         *     doSomething();
+         *   },
+         *
+         *   someOtherAction() {
+         *     this.someAction();
+         *     doSomeOtherThing();
+         *   }
+         */
+        const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
+        const { onError = () => undefined } = unboundActions;
+        const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
+        const boundActions: Partial<Actions<S, A>> = {};
+        actionNames.forEach(k => {
+          const action = unboundActions[k];
+
+          boundActions[k] = ((...args: never[]): Promise<void> =>
+            new Promise(resolve => {
+              const colorCat = colorize(name);
+              log(
+                `${colorCat.text} %cACTION%c - %s`,
+                ...colorCat.args,
+                'font-weight:bold',
+                'font-weight:normal',
+                k,
+                ...args,
+              );
+              setTimeout(async () => {
+                try {
+                  const numSetStateCallsBefore = numSetStateCalls.current;
+                  const result = (action as ActionFunction).apply(boundActions, args);
+                  if (result instanceof Promise) {
+                    await result;
+                  }
+                  resolve();
+                  calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
+                } catch (err) {
+                  if (k === 'onError') {
+                    throw err;
+                  } else {
+                    onError(err, k);
+                  }
+                }
+              }, 0);
+            })) as never;
+        });
+        return Object.freeze(boundActions as Actions<S, A>);
+      }, []);
+
+      // Call init() on mount, destroy() on unmount.
+      useEffect(() => {
+        const { init, destroy } = actions;
+        if (init) {
+          init();
+          isInitializedRef.current = true;
         }
-      };
-    }, []);
+        return () => {
+          isInitializedRef.current = false;
+          if (destroy) {
+            destroy();
+          }
+        };
+      }, []);
 
-    // Set up the StateBroker for the current provider.
-    const stateBrokerRef = useRef<StateBroker<S, A>>({
-      found: true,
-      version: 0,
-      state: initialState,
-      setState,
-      actions,
-      addListener(listener: ChangeListener<S>) {
-        listenersRef.current = [...listenersRef.current, listener].sort((l1, l2) => l1.order - l2.order);
-      },
-      removeListener(theId: number) {
-        listenersRef.current = listenersRef.current.filter(({ id }) => id !== theId);
-      },
-    });
+      // Set up the StateBroker for the current provider.
+      const stateBrokerRef = useRef<StateBroker<S, A>>({
+        found: true,
+        version: 0,
+        state: initialState,
+        setState,
+        actions,
+        addListener(listener: ChangeListener<S>) {
+          listenersRef.current = [...listenersRef.current, listener].sort((l1, l2) => l1.order - l2.order);
+        },
+        removeListener(theId: number) {
+          listenersRef.current = listenersRef.current.filter(({ id }) => id !== theId);
+        },
+      });
 
-    // Obtain references to external StateBroker instances.
-    const extStateBrokers = {} as Record<keyof E, StateBroker<E[keyof E]>>;
-    if (importedStates) {
-      let k: keyof E;
-      for (k in importedStates) {
-        extStateBrokers[k] = (importedStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
+      // Obtain references to external StateBroker instances.
+      const extStateBrokers = {} as Record<keyof E, StateBroker<E[keyof E]>>;
+      if (importedStates) {
+        let k: keyof E;
+        for (k in importedStates) {
+          extStateBrokers[k] = (importedStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
+        }
       }
-    }
 
-    // Add/remove current StateBroker on mount/unmount.
-    useEffect(() => {
-      allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current as StateBroker]];
-      log('Mounted provider: ', name);
-      return () => {
-        allStateBrokers = allStateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
-        log('Unmounted provider: ', name);
-      };
-    }, []);
+      // Add/remove current StateBroker on mount/unmount.
+      useEffect(() => {
+        allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current as StateBroker]];
+        log('Mounted provider: ', name);
+        return () => {
+          allStateBrokers = allStateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
+          log('Unmounted provider: ', name);
+        };
+      }, []);
 
-    return (
-      <Context.Provider value={stateBrokerRef.current}>
-        <Wrapped {...props} />
-      </Context.Provider>
-    );
-  };
+      return (
+        <Context.Provider value={stateBrokerRef.current}>
+          <Wrapped {...props} />
+        </Context.Provider>
+      );
+    };
 
   const Context = createContext<StateBroker<S, A>>({
     found: false,
@@ -495,7 +532,7 @@ export function createState<
     removeListener: () => undefined,
   });
 
-  const useSync: StateFactory<S>['useSync'] = onStateChange => {
+  const useSync: StateFactory<S, A>['useSync'] = onStateChange => {
     const idRef = useRef(idIter.next().value);
     const { found, addListener, removeListener, setState } = useContext(Context);
 
@@ -518,7 +555,7 @@ export function createState<
       };
     });
 
-    return setState;
+    return (s, options) => setState(s, { ...options, source: options?.source || 'external' });
   };
 
   const useStateFn = (alwaysRenderOnChange = false) => {
@@ -577,16 +614,16 @@ export function createState<
     }
   };
 
-  const consumer = function<T = unknown>(Wrapped: ComponentType<T>) {
-    return function(props: T & S & A) {
+  const consumer = function <T = unknown>(Wrapped: ComponentType<T>) {
+    return function (props: T & S & A) {
       const stateAndActions = useStateFn(true);
       return <Wrapped {...props} {...stateAndActions} />;
     } as ComponentType<Omit<T, keyof (S & A)>>;
   };
 
   function map<T extends PropsWithChildren<unknown>>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
-    return function(Wrapped: ComponentType): ComponentType<T> {
-      return function(props: T) {
+    return function (Wrapped: ComponentType): ComponentType<T> {
+      return function (props: T) {
         const stateAndActions = useStateFn();
         return <Wrapped {...props} {...mapFn({ ...stateAndActions })} />;
       };
@@ -625,14 +662,14 @@ const processDefaultState = <S,>(defaultState: State<S>) => ({
   stateDerivers: Object.keys(defaultState).reduce(
     (derivers, key) =>
       typeof defaultState[key] === 'function'
-        ? [...derivers, { key, derive: defaultState[key] as Function }]
+        ? [...derivers, { key, derive: defaultState[key] as GenericFunction }]
         : derivers,
-    [] as { key: string; derive: Function }[],
+    [] as { key: string; derive: GenericFunction }[],
   ),
   initialState: Object.keys(defaultState).reduce(
     (s, key) =>
       typeof defaultState[key] === 'function'
-        ? { ...s, [key]: (defaultState[key] as Function)(defaultState) }
+        ? { ...s, [key]: (defaultState[key] as GenericFunction)(defaultState) }
         : { ...s, [key]: defaultState[key] },
     {} as Partial<S>,
   ) as S,

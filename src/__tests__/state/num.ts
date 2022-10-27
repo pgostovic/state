@@ -23,16 +23,16 @@ export type NumStateProps = State & Actions;
 
 let theExtVal = 0;
 
-export default createState<State, { cheeseState: CheeseStateProps }, Actions, With42Props>(
+export default createState<State, Actions, With42Props, { cheeseState: CheeseStateProps }>(
   'Num',
+  {
+    imported: { cheeseState },
+    mapProvider: with42,
+  },
   {
     num: 1,
     numPlus1: ({ num }) => num + 1,
     extVal: () => theExtVal,
-  },
-  {
-    imported: { cheeseState },
-    mapProvider: with42,
   },
   ({ getState, setState, resetState, fortyTwo }) => ({
     init() {

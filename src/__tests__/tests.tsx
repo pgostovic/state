@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/extend-expect';
+
 import { fireEvent, render, waitForDomChange, waitForElement } from '@testing-library/react';
 import React, { FC, useRef } from 'react';
 import { act } from 'react-dom/test-utils';
@@ -28,15 +29,8 @@ export const runTests = async (allowProxyUsage = true) => {
       extVal,
       incrementExtVal,
     } = numState.useState();
-    const {
-      cheese,
-      setCheese,
-      triggerAnError,
-      triggerAnAsyncError,
-      errorAction,
-      errorMessage,
-      setNotReferenced,
-    } = cheeseState.useState();
+    const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage, setNotReferenced } =
+      cheeseState.useState();
     const numRenders = useRef(0);
 
     numRenders.current += 1;
@@ -100,10 +94,12 @@ export const runTests = async (allowProxyUsage = true) => {
 
   const TestComponentAndConsumer = cheeseState.consumer(numState.consumer(TestComponentConsumer));
 
-  const TestComponentMappedConsumer: FC<{ bubba: string } & CheeseStateProps & {
-      mappedNum: number;
-      mappedIncrementNum(): void;
-    }> = ({ mappedNum, mappedIncrementNum }) => (
+  const TestComponentMappedConsumer: FC<
+    { bubba: string } & CheeseStateProps & {
+        mappedNum: number;
+        mappedIncrementNum(): void;
+      }
+  > = ({ mappedNum, mappedIncrementNum }) => (
     <div>
       <div data-testid="num">{mappedNum}</div>
       <button data-testid="inc-button" onClick={() => mappedIncrementNum()}>
