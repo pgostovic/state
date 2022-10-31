@@ -193,7 +193,7 @@ interface Options<E = unknown, P = unknown> {
   mapProvider?: MapProvider<P>;
 }
 
-type GetActions<S, A, P extends GenericObject = GenericObject, E extends GenericObject = GenericObject> = (
+export type GetActions<S, A, P extends GenericObject = GenericObject, E extends GenericObject = GenericObject> = (
   getActionsParams: GetActionsParams<S, E> & P,
 ) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
