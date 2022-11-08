@@ -70,7 +70,7 @@ type Actions<S, A> = A & ImplicitActions<S, A>;
 
 type ActionFunction = (...args: never[]) => void | Promise<void>;
 
-type VoidActions<T> = Record<keyof T, ActionFunction>;
+export type VoidActions<T> = Record<keyof T, ActionFunction>;
 
 interface GetActionsParams<S, E> {
   /**
