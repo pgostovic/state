@@ -20,7 +20,7 @@ const distPkgJSON = {
   author,
   browser,
   dependencies: { ...dependencies, react: undefined },
-  peerDependencies: { ...peerDependencies, react: '^16.0.0 || ^17.0.0' },
+  peerDependencies,
   description,
   engines,
   keywords,
