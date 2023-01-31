@@ -622,7 +622,7 @@ export function createState<
   };
 
   function map<T extends PropsWithChildren<unknown>>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
-    return function (Wrapped: ComponentType): ComponentType<T> {
+    return function (Wrapped: ComponentType<PropsWithChildren<unknown>>): ComponentType<T> {
       return function (props: T) {
         const stateAndActions = useStateFn();
         return <Wrapped {...props} {...mapFn({ ...stateAndActions })} />;

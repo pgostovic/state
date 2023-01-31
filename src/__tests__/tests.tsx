@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/extend-expect';
 
 import { fireEvent, render, waitForDomChange, waitForElement } from '@testing-library/react';
-import React, { FC, useRef } from 'react';
+import React, { ReactNode, useRef } from 'react';
 import { act } from 'react-dom/test-utils';
 
 import { setAllowProxyUsage } from '..';
@@ -11,11 +11,16 @@ import numState, { NumStateProps } from './state/num';
 export const runTests = async (allowProxyUsage = true) => {
   setAllowProxyUsage(allowProxyUsage);
 
-  const Root: FC<{ stuff?: string }> = ({ children }) => <>{children}</>;
+  interface RootProps {
+    stuff?: string;
+    children?: ReactNode;
+  }
+
+  const Root = ({ children }: RootProps) => <>{children}</>;
 
   const RootWithProvider = cheeseState.provider(numState.provider(Root));
 
-  const TestComponent: FC = () => {
+  const TestComponent = () => {
     const {
       num,
       foo,
@@ -83,7 +88,7 @@ export const runTests = async (allowProxyUsage = true) => {
     );
   };
 
-  const TestComponentConsumer: FC<{ bubba: string } & CheeseStateProps & NumStateProps> = ({ num, incrementNum }) => (
+  const TestComponentConsumer = ({ num, incrementNum }: { bubba: string } & CheeseStateProps & NumStateProps) => (
     <div>
       <div data-testid="num">{num}</div>
       <button data-testid="inc-button" onClick={() => incrementNum()}>
@@ -94,12 +99,13 @@ export const runTests = async (allowProxyUsage = true) => {
 
   const TestComponentAndConsumer = cheeseState.consumer(numState.consumer(TestComponentConsumer));
 
-  const TestComponentMappedConsumer: FC<
-    { bubba: string } & CheeseStateProps & {
-        mappedNum: number;
-        mappedIncrementNum(): void;
-      }
-  > = ({ mappedNum, mappedIncrementNum }) => (
+  const TestComponentMappedConsumer = ({
+    mappedNum,
+    mappedIncrementNum,
+  }: { bubba: string } & CheeseStateProps & {
+      mappedNum: number;
+      mappedIncrementNum(): void;
+    }) => (
     <div>
       <div data-testid="num">{mappedNum}</div>
       <button data-testid="inc-button" onClick={() => mappedIncrementNum()}>
