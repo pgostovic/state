@@ -471,8 +471,8 @@ export function createState<
         const { init, destroy } = actions;
         if (init) {
           init();
-          isInitializedRef.current = true;
         }
+        isInitializedRef.current = true;
         return () => {
           isInitializedRef.current = false;
           if (destroy) {
