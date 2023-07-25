@@ -1,4 +1,5 @@
 import { createLogger } from '@phnq/log';
+import deepEqual from 'fast-deep-equal';
 import React, {
   ComponentType,
   createContext,
@@ -184,7 +185,7 @@ interface InternalStateFactory<S> extends StateFactory<S> {
   useStateBroker(): StateBroker<S>;
 }
 
-interface Options<E = unknown, P = unknown> {
+interface Options<S, E = unknown, P = unknown> {
   /**
    * Named imported state factories.
    */
@@ -193,6 +194,8 @@ interface Options<E = unknown, P = unknown> {
    * function for adding behaviour to the provider in the form of a HOC.
    */
   mapProvider?: MapProvider<P>;
+
+  deepCompare?: (keyof S)[];
 }
 
 export type GetActions<S, A, P extends GenericObject = GenericObject, E extends GenericObject = GenericObject> = (
@@ -232,7 +235,7 @@ export function createState<
   PR extends keyof S = never,
 >(
   name: string,
-  options: Options<E, P>,
+  options: Options<S, E, P>,
   defaultState: State<S>,
   getActions: GetActions<S, A, P, E>,
 ): StateFactory<S, A, PR>;
@@ -245,12 +248,12 @@ export function createState<
   PR extends keyof S = never,
 >(name: string, ...args: unknown[]): StateFactory<S, A, PR> {
   const [options, defaultState, getActions] = (args.length === 2 ? [{}, ...args] : args) as [
-    Options<E, P>,
+    Options<S, E, P>,
     State<S>,
     GetActions<S, A, P, E>,
   ];
 
-  const { imported: importedStates, mapProvider } = options;
+  const { imported: importedStates, mapProvider, deepCompare = [] } = options;
 
   const { stateDerivers, initialState } = processDefaultState(defaultState);
 
@@ -332,8 +335,8 @@ export function createState<
         if (onChange && isInitializedRef.current) {
           try {
             onChangeCount.current += 1;
-            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(
-              k => deltaState[k] !== currentState[k],
+            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(k =>
+              deepCompare.includes(k) ? !deepEqual(deltaState[k], currentState[k]) : deltaState[k] !== currentState[k],
             );
             onChange(changedKeys, { prevState, source, viaExternal: !!source });
           } finally {
