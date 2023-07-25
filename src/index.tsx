@@ -17,6 +17,8 @@ export const setAllowProxyUsage = (allow: boolean) => {
   allowProxyUsage = allow;
 };
 
+let invokationContext: { name: string; action: string | symbol | number } | undefined = undefined;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GenericObject = Record<string, any>;
 type GenericFunction = (...args: unknown[]) => unknown;
@@ -441,10 +443,12 @@ export function createState<
                 ...colorCat.args,
                 'font-weight:bold',
                 'font-weight:normal',
-                k,
+                `${String(k)}${invokationContext ? ` (via ${name}.${String(invokationContext.action)})` : ''}`,
                 ...args,
               );
-              setTimeout(async () => {
+
+              const invokeAction = async () => {
+                invokationContext = { name, action: k };
                 try {
                   const numSetStateCallsBefore = numSetStateCalls.current;
                   const result = (action as ActionFunction).apply(boundActions, args);
@@ -459,8 +463,16 @@ export function createState<
                   } else {
                     onError(err, k);
                   }
+                } finally {
+                  invokationContext = undefined;
                 }
-              }, 0);
+              };
+
+              if (implicitActionNames.includes(k) || invokationContext) {
+                invokeAction();
+              } else {
+                setTimeout(invokeAction, 0);
+              }
             })) as never;
         });
         return Object.freeze(boundActions as Actions<S, A>);
