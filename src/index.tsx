@@ -20,6 +20,8 @@ export const setAllowProxyUsage = (allow: boolean) => {
 
 let invokationContext: { name: string; action: string | symbol | number } | undefined = undefined;
 
+const lastRenderDurations = new Map<number, number>();
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GenericObject = Record<string, any>;
 type GenericFunction = (...args: unknown[]) => unknown;
@@ -270,7 +272,6 @@ export function createState<
       const listenersRef = useRef<ChangeListener<S>[]>([]);
       const onChangeCount = useRef(0);
       const numSetStateCalls = useRef(0);
-      const stateChangePidRef = useRef<number>();
       const isInitializedRef = useRef(false);
       const accumulatedDeltaStateRef = useRef<Partial<S>>();
       const accumulatedDeltaStateChangesRef = useRef(0);
@@ -354,56 +355,66 @@ export function createState<
           accumulatedDeltaStateRef.current = deltaState;
         }
 
-        if (stateChangePidRef.current) {
-          clearTimeout(stateChangePidRef.current);
-        }
-
         markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
 
-        // Notify listeners of the state change at the end of the event loop.
-        stateChangePidRef.current = window.setTimeout(() => {
-          if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
-            const deltaStateCum = accumulatedDeltaStateRef.current;
-            const markedCurrentState = markedCurrentStateRef.current;
+        if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
+          const deltaStateCum = accumulatedDeltaStateRef.current;
+          const markedCurrentState = markedCurrentStateRef.current;
 
-            const stateChanges = Object.entries(deltaStateCum)
-              .filter(([k]) => {
-                const key = k as keyof Partial<S>;
-                return deltaStateCum[key] !== markedCurrentState[key];
+          const stateChanges = Object.entries(deltaStateCum)
+            .filter(([k]) => {
+              const key = k as keyof Partial<S>;
+              return deltaStateCum[key] !== markedCurrentState[key];
+            })
+            .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
+
+          const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
+
+          if (changedKeys.length > 0) {
+            const colorCat = colorize(name);
+            const numChanges = accumulatedDeltaStateChangesRef.current;
+            log(
+              `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
+              ...colorCat.args,
+              'font-weight:bold',
+              'font-weight:normal',
+              Object.entries(deltaStateCum)
+                .filter(([k]) => changedKeys.includes(k as keyof S))
+                .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+            );
+
+            /**
+             * Sort the listeners before notifying them. The order is:
+             * 1. by listener order attribute
+             * 2. by previous render duration, faster ones first
+             * 3. by listener id descending -- i.e. newer listeners first
+             *
+             * This prevents slower listeners from blocking faster ones. Also, for
+             * yet-to-be-rendered listeners (i.e. default prev render duration of 0),
+             * newer ones are rendered first.
+             */
+            [...listenersRef.current]
+              .sort((l1, l2) => {
+                const dur1 = lastRenderDurations.get(l1.id) || 0;
+                const dur2 = lastRenderDurations.get(l2.id) || 0;
+                return l1.order - l2.order || dur1 - dur2 || l2.id - l1.id;
               })
-              .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
-
-            const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
-
-            if (changedKeys.length > 0) {
-              const colorCat = colorize(name);
-              const numChanges = accumulatedDeltaStateChangesRef.current;
-              log(
-                `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
-                ...colorCat.args,
-                'font-weight:bold',
-                'font-weight:normal',
-                Object.entries(deltaStateCum)
-                  .filter(([k]) => changedKeys.includes(k as keyof S))
-                  .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
-              );
-
-              listenersRef.current.forEach(({ onChangeInternal }) =>
-                onChangeInternal({
-                  changedKeys,
-                  stateChanges,
-                  newState: stateBrokerRef.current.state,
-                  version: stateBrokerRef.current.version,
-                }),
-              );
-            }
-
-            stateChangePidRef.current = undefined;
-            markedCurrentStateRef.current = undefined;
-            accumulatedDeltaStateRef.current = undefined;
-            accumulatedDeltaStateChangesRef.current = 0;
+              .forEach(({ onChangeInternal }) => {
+                setTimeout(() => {
+                  onChangeInternal({
+                    changedKeys,
+                    stateChanges,
+                    newState: stateBrokerRef.current.state,
+                    version: stateBrokerRef.current.version,
+                  });
+                }, 0);
+              });
           }
-        }, 0);
+
+          markedCurrentStateRef.current = undefined;
+          accumulatedDeltaStateRef.current = undefined;
+          accumulatedDeltaStateChangesRef.current = 0;
+        }
       };
       /**
        * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
@@ -575,6 +586,7 @@ export function createState<
 
   const useStateFn = (alwaysRenderOnChange = false) => {
     const idRef = useRef(idIter.next().value);
+
     const { found, version, state, actions, addListener, removeListener } = useContext(Context);
     const [, render] = useState(false);
 
@@ -585,6 +597,13 @@ export function createState<
     }
 
     const referencedKeys = new Set<keyof S | keyof A>();
+
+    useEffect(() => {
+      lastRenderDurations.set(idRef.current, 0);
+      return () => {
+        lastRenderDurations.delete(idRef.current);
+      };
+    }, []);
 
     useEffect(() => {
       addListener({
@@ -601,7 +620,9 @@ export function createState<
            * yield a fresh state before the change notification was able to run.
            */
           if (alwaysRenderOnChange || (changedKeys.some(k => referencedKeys.has(k)) && newVersion > version)) {
+            const start = performance.now();
             render(r => !r);
+            lastRenderDurations.set(idRef.current, performance.now() - start);
           }
         },
       });
