@@ -264,6 +264,7 @@ export function createState<
       const listenersRef = useRef<ChangeListener<S>[]>([]);
       const onChangeCount = useRef(0);
       const numSetStateCalls = useRef(0);
+      const stateChangePidRef = useRef<number>();
       const isInitializedRef = useRef(false);
       const accumulatedDeltaStateRef = useRef<Partial<S>>();
       const accumulatedDeltaStateChangesRef = useRef(0);
@@ -347,66 +348,77 @@ export function createState<
           accumulatedDeltaStateRef.current = deltaState;
         }
 
+        if (stateChangePidRef.current) {
+          clearTimeout(stateChangePidRef.current);
+        }
+
         markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
 
-        if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
-          const deltaStateCum = accumulatedDeltaStateRef.current;
-          const markedCurrentState = markedCurrentStateRef.current;
+        /**
+         * Notify listeners of the state change at the end of the event loop.
+         * The purpose is to accumulate state changes and notify listeners only once.
+         */
+        stateChangePidRef.current = window.setTimeout(() => {
+          if (accumulatedDeltaStateRef.current && markedCurrentStateRef.current) {
+            const deltaStateCum = accumulatedDeltaStateRef.current;
+            const markedCurrentState = markedCurrentStateRef.current;
 
-          const stateChanges = Object.entries(deltaStateCum)
-            .filter(([k]) => {
-              const key = k as keyof Partial<S>;
-              return deltaStateCum[key] !== markedCurrentState[key];
-            })
-            .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
-
-          const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
-
-          if (changedKeys.length > 0) {
-            const colorCat = colorize(name);
-            const numChanges = accumulatedDeltaStateChangesRef.current;
-            log(
-              `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
-              ...colorCat.args,
-              'font-weight:bold',
-              'font-weight:normal',
-              Object.entries(deltaStateCum)
-                .filter(([k]) => changedKeys.includes(k as keyof S))
-                .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
-            );
-
-            /**
-             * Sort the listeners before notifying them. The order is:
-             * 1. by listener order attribute
-             * 2. by previous render duration, faster ones first
-             * 3. by listener id descending -- i.e. newer listeners first
-             *
-             * This prevents slower listeners from blocking faster ones. Also, for
-             * yet-to-be-rendered listeners (i.e. default prev render duration of 0),
-             * newer ones are rendered first.
-             */
-            [...listenersRef.current]
-              .sort((l1, l2) => {
-                const dur1 = lastRenderDurations.get(l1.id) || 0;
-                const dur2 = lastRenderDurations.get(l2.id) || 0;
-                return l1.order - l2.order || dur1 - dur2 || l2.id - l1.id;
+            const stateChanges = Object.entries(deltaStateCum)
+              .filter(([k]) => {
+                const key = k as keyof Partial<S>;
+                return deltaStateCum[key] !== markedCurrentState[key];
               })
-              .forEach(({ onChangeInternal }) => {
-                setTimeout(() => {
-                  onChangeInternal({
-                    changedKeys,
-                    stateChanges,
-                    newState: stateBrokerRef.current.state,
-                    version: stateBrokerRef.current.version,
-                  });
-                }, 0);
-              });
-          }
+              .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
 
-          markedCurrentStateRef.current = undefined;
-          accumulatedDeltaStateRef.current = undefined;
-          accumulatedDeltaStateChangesRef.current = 0;
-        }
+            const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
+
+            if (changedKeys.length > 0) {
+              const colorCat = colorize(name);
+              const numChanges = accumulatedDeltaStateChangesRef.current;
+              log(
+                `${colorCat.text} %cSTATE Δ${numChanges > 1 ? [' (', numChanges, ') '].join('') : ''}%c - %o`,
+                ...colorCat.args,
+                'font-weight:bold',
+                'font-weight:normal',
+                Object.entries(deltaStateCum)
+                  .filter(([k]) => changedKeys.includes(k as keyof S))
+                  .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+              );
+
+              /**
+               * Sort the listeners before notifying them. The order is:
+               * 1. by listener order attribute
+               * 2. by previous render duration, faster ones first
+               * 3. by listener id descending -- i.e. newer listeners first
+               *
+               * This prevents slower listeners from blocking faster ones. Also, for
+               * yet-to-be-rendered listeners (i.e. default prev render duration of 0),
+               * newer ones are rendered first.
+               */
+              [...listenersRef.current]
+                .sort((l1, l2) => {
+                  const dur1 = lastRenderDurations.get(l1.id) || 0;
+                  const dur2 = lastRenderDurations.get(l2.id) || 0;
+                  return l1.order - l2.order || dur1 - dur2 || l2.id - l1.id;
+                })
+                .forEach(({ onChangeInternal }) => {
+                  setTimeout(() => {
+                    onChangeInternal({
+                      changedKeys,
+                      stateChanges,
+                      newState: stateBrokerRef.current.state,
+                      version: stateBrokerRef.current.version,
+                    });
+                  }, 0);
+                });
+            }
+
+            stateChangePidRef.current = undefined;
+            markedCurrentStateRef.current = undefined;
+            accumulatedDeltaStateRef.current = undefined;
+            accumulatedDeltaStateChangesRef.current = 0;
+          }
+        }, 0);
       };
       /**
        * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
