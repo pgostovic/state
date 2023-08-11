@@ -435,14 +435,14 @@ export function createState<
          *   }
          */
         const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
-        const { onError = () => undefined } = unboundActions;
+        const { onError = (err, k) => log.error(`Error handling action [${String(k)}]`).stack(err) } = unboundActions;
         const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
         const boundActions: Partial<Actions<S, A>> = {};
         actionNames.forEach(k => {
           const action = unboundActions[k];
 
           boundActions[k] = ((...args: never[]): Promise<void> =>
-            new Promise((resolve, reject) => {
+            new Promise(resolve => {
               const colorCat = colorize(name);
               log(
                 `${colorCat.text} %cACTION%c - %s`,
@@ -464,7 +464,7 @@ export function createState<
                   calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
                 } catch (err) {
                   if (k === 'onError') {
-                    reject(err);
+                    throw err;
                   } else {
                     onError(err, k);
                   }
