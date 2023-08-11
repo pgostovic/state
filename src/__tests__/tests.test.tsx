@@ -35,6 +35,10 @@ const TestComponent = () => {
 
   numRenders.current += 1;
 
+  const setNumState = numState.useSync(() => {
+    // no-op
+  });
+
   return (
     <div>
       <div data-testid="num">{num}</div>
@@ -47,6 +51,9 @@ const TestComponent = () => {
       {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
       <button data-testid="inc-button" onClick={() => incrementNum()}>
         Increment Num
+      </button>
+      <button data-testid="set-num-25" onClick={() => setNumState({ num: 25 })}>
+        Set Num to 25
       </button>
       <button data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
         Increment 3x Asyncs
@@ -145,6 +152,33 @@ test('state change with action', async () => {
   fireEvent.click(button);
   await waitFor(() => {
     expect(numElmnt).toHaveTextContent('3');
+  });
+});
+
+test('state change with useSync', async () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const numElmnt = result.getByTestId('num');
+  const numRendersElmnt = result.getByTestId('numRenders');
+  const button25 = result.getByTestId('set-num-25');
+  const button = result.getByTestId('inc-button');
+
+  expect(numElmnt).toHaveTextContent('1');
+  expect(numRendersElmnt).toHaveTextContent('1');
+
+  fireEvent.click(button25);
+  await waitFor(() => {
+    expect(numElmnt).toHaveTextContent('1');
+    expect(numRendersElmnt).toHaveTextContent('1');
+  });
+
+  fireEvent.click(button);
+  await waitFor(() => {
+    expect(numElmnt).toHaveTextContent('26');
+    expect(Number(numRendersElmnt.textContent)).toBeGreaterThan(1);
   });
 });
 

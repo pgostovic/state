@@ -85,7 +85,7 @@ interface GetActionsParams<S, E> {
    * Used to set some someset of the full state.
    * @param subState a subset of the full state
    */
-  setState<T>(subState: SubState<S, T>): void;
+  setState(subState: Partial<S>): void;
   /**
    * Resets the full state to its initial value.
    * @param reinitialize whether or not the `init()` lifecycle method should be called.
@@ -108,7 +108,7 @@ interface StateBroker<S = unknown, A = unknown> {
   found: boolean;
   version: number; // incremented each time state changes
   state: S;
-  setState(stateChanges: SubState<S, A>, options?: SetStateOptions): void;
+  setState(stateChanges: Partial<S>, options?: SetStateOptions): void;
   actions: Readonly<Actions<S, A>>;
   addListener(listener: ChangeListener<S>): void;
   removeListener(id: number): void;
@@ -197,7 +197,6 @@ export type GetActions<S, A, P extends GenericObject = GenericObject, E extends 
   getActionsParams: GetActionsParams<S, E> & P,
 ) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
-type SubState<S, U> = Partial<S> & { [K in keyof U]-?: K extends keyof S ? S[K] : never };
 
 /**
  * Creates a factory for generating state providers, consumer hooks and HOCs. A single state
@@ -288,7 +287,7 @@ export function createState<
       };
 
       // const setState: StateBroker<S, A>['setState'] = (stateChanges, incremental) => {
-      const setState = <T,>(stateChanges: SubState<S, T>, options: SetStateOptions = {}) => {
+      const setState = (stateChanges: Partial<S>, options: SetStateOptions = {}) => {
         const { incremental = true, source } = options;
 
         // function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
