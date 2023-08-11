@@ -13,13 +13,6 @@ import React, {
 
 const log = createLogger('@phnq/state');
 
-let allowProxyUsage = true;
-export const setAllowProxyUsage = (allow: boolean) => {
-  allowProxyUsage = allow;
-};
-
-let invokationContext: { name: string; action: string | symbol | number } | undefined = undefined;
-
 const lastRenderDurations = new Map<number, number>();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -450,19 +443,18 @@ export function createState<
           const action = unboundActions[k];
 
           boundActions[k] = ((...args: never[]): Promise<void> =>
-            new Promise(resolve => {
+            new Promise((resolve, reject) => {
               const colorCat = colorize(name);
               log(
                 `${colorCat.text} %cACTION%c - %s`,
                 ...colorCat.args,
                 'font-weight:bold',
                 'font-weight:normal',
-                `${String(k)}${invokationContext ? ` (via ${name}.${String(invokationContext.action)})` : ''}`,
+                k,
                 ...args,
               );
 
               const invokeAction = async () => {
-                invokationContext = { name, action: k };
                 try {
                   const numSetStateCallsBefore = numSetStateCalls.current;
                   const result = (action as ActionFunction).apply(boundActions, args);
@@ -473,20 +465,14 @@ export function createState<
                   calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
                 } catch (err) {
                   if (k === 'onError') {
-                    throw err;
+                    reject(err);
                   } else {
                     onError(err, k);
                   }
-                } finally {
-                  invokationContext = undefined;
                 }
               };
 
-              if (implicitActionNames.includes(k) || invokationContext) {
-                invokeAction();
-              } else {
-                setTimeout(invokeAction, 0);
-              }
+              invokeAction();
             })) as never;
         });
         return Object.freeze(boundActions as Actions<S, A>);
@@ -632,22 +618,14 @@ export function createState<
     }, [version]);
 
     const stateCopy = { ...(state as Omit<S, PR>), ...actions };
-    /**
-     * Only return a Proxy if the browser supports it. Otherwise just return
-     * the whole state. Proxy is required for implicit substate change subscription.
-     */
-    if (allowProxyUsage && typeof Proxy === 'function') {
-      const stateProxy = new Proxy(stateCopy, {
-        get(target, prop) {
-          referencedKeys.add(prop as keyof Omit<S, PR> | keyof A);
-          return target[prop as keyof Omit<S, PR> | keyof A];
-        },
-      });
-      return stateProxy;
-    } else {
-      Object.keys(stateCopy).forEach(k => referencedKeys.add(k as keyof S | keyof A));
-      return stateCopy;
-    }
+
+    const stateProxy = new Proxy(stateCopy, {
+      get(target, prop) {
+        referencedKeys.add(prop as keyof Omit<S, PR> | keyof A);
+        return target[prop as keyof Omit<S, PR> | keyof A];
+      },
+    });
+    return stateProxy;
   };
 
   const consumer = function <T = unknown>(Wrapped: ComponentType<T>) {
