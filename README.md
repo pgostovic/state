@@ -4,70 +4,52 @@
 
 [![npm version](https://badge.fury.io/js/%40phnq%2Fstate.svg)](https://badge.fury.io/js/%40phnq%2Fstate)
 
-The `@phnq/state` library provides central state management for React applications.
+The `@phnq/state` library is a flexible, efficient, easy-to-use **state management** solution for React and React Native applications. Built on top of React's [Context API](https://react.dev/learn/passing-data-deeply-with-context), it provides a great way to isolate an application's business logic from its UI, while at the same time allowing convenient access to it from any component.
 
-Features include:
-- Access to state data via component props
-- State update functions (i.e. actions) via component props
-- Automatic render on state updates
-- Relatively minimal boilerplate (compared to Redux)
-- Built-in support for side-effects (async or otherwise)
+## Concepts
 
-Go straight to some [code examples](#examples).
+Getting a few key ideas down will go a long way towards maximizing the usefulness of `@phnq/state`.
 
 ### Providers and Consumers
 
-State `providers` and `consumers` are React higher-order components (HOCs) that provide state-related functionality to the components that they wrap.
+Similar to React's Context API, `@phnq/state` has providers and consumers. A provider is a component where the state's data is kept; a provider *provides* its services to its descendents in the component tree. A consumer is a React hook that uses some ancestor provider's state.
 
-#### Provider
-A `provider` represents a domain-specific data store and provides a programmatic API for manipulating the store's data. A provider's scope is the component sub-hierarchy that it wraps.
+The consumer/provider relationship is not entirely unlike the client/server relationship. They are similar in the sense that providers/servers are the source of truth, and consumers/clients may access this truth.
 
-#### Consumer
-A `consumer` brokers access to its corresponding state provider, i.e. its closest same-domain provider ancestor. Access to the data store's data and its API are provided to the wrapped component via props.
+A state provider also exposes an API to its consumers; this API is in the form of void-returning functions called `actions`. Action functions are basically one-way messages from the consumer to the provider, instructions on how to affect the state. Resulting state changes trickle down to consumers, triggering renders in the context where they are used.
 
-#### useState() consumer hook
-The `useState()` hook provides access to the corresponding ancestor state provider when used in functional components. The `useState()` function returns the complete state. State changes trigger renders in the context where `useState()` is used. As a render-reducing optimization, renders are only triggered when referenced state values change.
+This one-way data flow pattern is known as `Flux`, and is ubiquitous in React.
 
-The `createState` function in `@phnq/state` is used to create create a matching domain-specific provider/consumer/useState(). It returns a JavaScript object with the keys 'provider', 'consumer', and 'useState'.
+![Alt text](image.png)
 
-### State and Actions
-Inspired by Redux's nomenclature, the data in a provider's data store is referred to as `State`, and the programmatic API is said to be composed of `Actions` -- i.e. each function in the API is an `Action`.
+## Usage
 
-Actions are logically and semantically decoupled from the results they yield. In other words, invoking an action can be thought of as a one-way message or instruction for the data store. Any resulting state changes will materialize as prop changes in state consumers. As such, action functions may only return `void` or `Promise<void>`. This one-way communication restriction makes state management with `@phnq/state` akin to pub/sub.
+### Creating a Provider
 
-## Examples
+Creating a state provider involves the following:
+1. Defining the state's data schema
+2. Defining the actions API interface
+3. Setting the initial state
+4. Implementing the actions API
 
-#### uiState.ts
-This trivial example creates a data store that has a single value, accentColor. It also provides a single Action to update the accentColor. The provider and consumer, which are returned from `createState`, are exported.
+Here's a trivial example of a state provider that manages a single value, `accentColor`. It also provides a single action, `setAccentColor`, which updates the accentColor value.
 
+#### theme.ts
 ```ts
 import { createState } from '@phnq/state';
 
-// This is the schema for the data store.
 interface State {
   accentColor: string;
 }
 
-// This is the API interface for the actions.
 interface Actions {
   setAccentColor(accentColor: string): void;
 }
 
-// This is a convenience type for consumers.
-export type UIStateProps = State & Actions;
-
-/**
- * Create the state and export the provider and consumer.
- * The createState() function takes 4 arguments:
- * 1) An app-unique domain.
- * 2) The initial state of the data store.
- * 3) A function that returns the actions API.
- * 4) (optional) a Provider mapping function - discussed below.
- */
 export default createState<State, Actions>(
-  'UI',
+  'Theme', // state's name
   {
-    accentColor: "blue",
+    accentColor: "blue", // initial state
   },
   ({ setState }) => ({
     setAccentColor(accentColor: string) {
@@ -77,193 +59,119 @@ export default createState<State, Actions>(
 );
 ```
 
-#### Box.tsx (consumer)
+### Using a Provider
 
-This Box component is a consumer of the UIState declared above. Notice how the `UIStateProps` convenience type is used to specify the incoming state interface. This component just adds a border around the incoming children node(s). The border color comes from the UIState.
+The state provider is a HOC (higher-order component) that wraps the component that needs access to the state.
 
 ```tsx
-import React, { FC } from 'react';
-import uiState, { UIStateProps } from './uiState';
+import theme from './theme';
+import Box from './Box';
 
-const Box:FC<UIStateProps> = ({ accentColor, children }) => (
-  <div style={{ border: `1px solid ${accentColor}` }}>{children}</div>
+const App = () => (
+  <div>
+    <h1>My App</h1>
+    <Box>I'm in a box!</Box>
+  </div>
 );
 
-export default  uiState.consumer(Box);
+// Wrap the App component with the theme provider.
+export default theme.provider(App);
 ```
 
-#### Box.tsx (useState() consumer hook)
+Any component that is a descendent of the `App` component can consume the the `theme` state.
 
-The preferred way of consuming state in a React functional component is to use the useState() hook. It's more convenient since it doesn't require
-any additional TypeScript types on the incoming props. It's also easier to manage state key collisions when consuming multiple states in one component.
+The `Box` component is a consumer of the theme state. It's defined in the next section.
+
+
+### Consuming State
+
+The state's useState() hook is used to access some provider's data and actions. This example takes the `accentColor` value from the theme state and uses it to set the border color of the box.
 
 ```tsx
-import React, { FC } from 'react';
-import uiState from './uiState';
+import { ReactNode } from 'react';
+import theme from './theme';
 
-const Box: FC = ({ children }) => {
-  const { accentColor } = uiState.useState();
+const Box = ({ children }: { children: ReactNode }) => {
+  const { accentColor } = theme.useState();
+
   return <div style={{ border: `1px solid ${accentColor}` }}>{children}</div>;
 };
 
-export default  Box;
+export default Box;
 ```
 
+### Calling Actions
 
-We haven't added a provider yet though. If the Box component were rendered without it's corresponding provider as an ancestor, an error would be thrown with the message:
-
-    No provider found for "UI" state.
-
-#### Container.tsx (provider)
-
-This Container component is wrapped by the UIState provider which allows descendents to be UIState consumers. The Box component included here now has a provider as an ancestor.
+The state's same useState() hook is used to access the provider's actions. This example adds a button that, when clicked, invokes the `setAccentColor` action.
 
 ```tsx
-import React, { FC } from 'react';
-import uiState from './uiState';
-import Box from './Box';
+import { ReactNode } from 'react';
+import theme from './theme';
 
-const Container:FC = () => (
-  <div>
-    <Box>I am in a box</Box>
-  </div>
-);
+const Box = ({ children }: { children: ReactNode }) => {
+  const { accentColor, setAccentColor } = theme.useState();
 
-export default  uiState.provider(Container);
+  return (
+    <div style={{ border: `1px solid ${accentColor}` }}>
+      {children}
+      <button onClick={() => setAccentColor('red')}>Make red</button>
+      <button onClick={() => setAccentColor('green')}>Make green</button>
+    </div>
+  );
+};
 ```
 
-#### ChangeAccentColor.tsx (consumer)
+### Async Side-Effects
+Adding `async` behaviour to actions is easy thanks to the one-way (Flux) nature of actions. You just need to add the `async` keyword.
 
-Here's an example of a consumer component that invokes an action. It's a button that, when clicked sets the uiState's accentColor to the color passed in as a prop.
-
-```tsx
-import React, { FC } from 'react';
-import uiState, { UIStateProps } from './uiState';
-
-interface Props {
-  color: string;
-}
-
-const ChangeAccentColor:FC<UIStateProps> = ({ color, setAccentColor }) => (
-  <button onClick={() => setAccentColor(color)}>
-    Make accent color {color}
-  </button>
-);
-
-export default  uiState.consumer(ChangeAccentColor);
-```
-
-
-#### Container.tsx (updated to include ChangeAccentColor)
-
-This is the same Container component from above, but now it has a few buttons for changing the accent color. Clicking a <ChangeAccentColor /> buttom will update the UIState's accentColor state, which will in-turn trigger consumers to be re-rendered with the new value.
-
-```tsx
-import React, { FC } from 'react';
-import uiState from './uiState';
-import Box from './Box';
-import ChangeAccentColor from './ChangeAccentColor';
-
-const Container:FC = () => (
-  <div>
-    <Box>I am in a box</Box>
-    <ChangeAccentColor color="yellow" />
-    <ChangeAccentColor color="green" />
-    <ChangeAccentColor color="red" />
-    <ChangeAccentColor color="blue" />
-  </div>
-);
-
-export default  uiState.provider(Container);
-```
-
-## Async Side-Effects
-Async side-effects in `@phnq/state` actions are possible by adding `async`. This simple facility is attributed to the one-way nature of actions.
-
-Here's an example of an action that asynchronously updates the state.
+This example uses a pretend function getRandomColor() which returns a color asynchronously.
 
 ```ts
 import { createState } from '@phnq/state';
-import { Thing, getThings } from 'thing-api';
+import { getRandomColor } from 'some-color-api';
 
 interface State {
-  things: Thing[];
+  accentColor: string;
 }
 
 interface Actions {
-  fetchThings(): Promise<void>;
+  setAccentColor(accentColor: string): void;
+  randomizeAccentColor(): void;
 }
-
-export type ThingStateProps = State & Actions;
 
 export default createState<State, Actions>(
-  'Things',
+  'Theme', // state's name
   {
-    things: [],
+    accentColor: "blue", // initial state
   },
-  ({ getState, setState }) => ({
-    async fetchThings() {
-      const { things } = getState();
-      console.log('Old things: ', things);
+  ({ setState }) => ({
+    setAccentColor(accentColor: string) {
+      setState({ accentColor });
+    },
 
-      // Imagine that getThings() makes a network request or something.
-      setState({ things: await getThings() });
+    async randomizeAccentColor() {
+      setState({ accentColor: await getRandomColor() });
     },
   }),
 );
 ```
 
-## Provider Mapping
-The fourth (optional) argument to the `createState()` function is the "provider mapping"
-function. This function provides an opportunity to wrap the state Provider with
-other higher-order components (HOCs) to extend the functionality of action functions.
-There is also a corresponding additional type variable to add the HOC's prop types.
+## Other Features
 
-For example, suppose you wanted to use localized strings in an action function using
-[@phnq/i18n](https://www.npmjs.com/package/@phnq/i18n). The @phnq/i18n provides a
-function for retrieving translated strings: `i18ns()`. The `i18ns()` function is
-exposed to a React component as a prop via a HOC. Here's how to bring it into a
-state action function:
+### Multiple State Providers
 
-```ts
-import { createState } from '@phnq/state';
-import { WithI18nProps, withI18n } from '@phnq/i18n'
-import { Thing, getThings } from 'thing-api';
+The single/monolithic data store approach used by some popular state management libraries is unnecessarily restrictive. The `@phnq/state` philosophy is to be flexible and allow for multiple state providers. In addition to providing a natural way to make state more modular, it also provides:
+- Easier state cleanup - no need to reset things, just need to unmount.
+- Multiple instances of the same state - handy for displaying multiple instances of some complicated UI for different data.
 
-interface State {
-  things: Thing[];
-}
+### Providers as Consumers
+State providers are just components, so since components can be descendents of other components, state providers can be consumers of other state providers.
 
-interface Actions {
-  fetchThings(): Promise<void>;
-}
+(examples TBD)
 
-export type ThingStateProps = State & Actions;
-
-// Add the WithI18nProps type so we can use the i18ns() function.
-export default createState<State, Actions, WithI18nProps>(
-  'Things',
-  {
-    things: [],
-  },
-  ({ setState, i18ns }) => ({
-    async fetchThings() {
-      try {
-        setState({ things: await getThings() });
-      } catch (err) {
-        alert(i18ns('error.generic', { message: err.message }));
-      }
-    },
-  }),
-  Provider => withI18n(Provider), // Wrap the Provider with the withI18n() HOC
-);
-```
-The provider mapping function could be some arbitrary chain of HOCs. In the above
-case there's only one, so instead of the last argument being:
-```ts
-  Provider => withI18n(Provider)
-```
-It could just be:
-```ts
-  withI18n
-```
+### State Lifecycle Hooks
+There are a few implicitly available lifecycle actions:
+- init() - called when the state provder is mounted
+- destroy() - called when the state provider is unmounted
+- onError() - called when an error occurs in an action
+- onChange() - called when the state changes
