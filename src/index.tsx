@@ -80,7 +80,7 @@ interface GetActionsParams<S, E> {
    * Returns a copy of the named external state.
    * @returns a copy of the named external state
    */
-  getState(extStateName: keyof E): E[keyof E];
+  getState<K extends keyof E>(extStateName: K): E[K];
   /**
    * Used to set some someset of the full state.
    * @param subState a subset of the full state
