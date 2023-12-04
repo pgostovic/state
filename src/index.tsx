@@ -265,7 +265,6 @@ export function createState<
       const onChangeCount = useRef(0);
       const numSetStateCalls = useRef(0);
       const isInitializedRef = useRef(false);
-      const markedCurrentStateRef = useRef<S>();
 
       function getState(): S;
       function getState(extStateName: keyof E): E[keyof E];
@@ -333,61 +332,53 @@ export function createState<
           }
         }
 
-        markedCurrentStateRef.current = markedCurrentStateRef.current || currentState;
+        const changes = Object.entries(deltaState)
+          .filter(([k]) => {
+            const key = k as keyof Partial<S>;
+            return deltaState[key] !== currentState[key];
+          })
+          .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
 
-        if (markedCurrentStateRef.current) {
-          const markedCurrentState = markedCurrentStateRef.current;
+        const changedKeys = Object.keys(changes) as (keyof Partial<S>)[];
 
-          const stateChanges = Object.entries(deltaState)
-            .filter(([k]) => {
-              const key = k as keyof Partial<S>;
-              return deltaState[key] !== markedCurrentState[key];
+        if (changedKeys.length > 0) {
+          const colorCat = colorize(name);
+          log(
+            `${colorCat.text} %cSTATE Δ%c - %o`,
+            ...colorCat.args,
+            'font-weight:bold',
+            'font-weight:normal',
+            Object.entries(deltaState)
+              .filter(([k]) => changedKeys.includes(k as keyof S))
+              .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+          );
+
+          /**
+           * Sort the listeners before notifying them. The order is:
+           * 1. by listener order attribute
+           * 2. by previous render duration, faster ones first
+           * 3. by listener id descending -- i.e. newer listeners first
+           *
+           * This prevents slower listeners from blocking faster ones. Also, for
+           * yet-to-be-rendered listeners (i.e. default prev render duration of 0),
+           * newer ones are rendered first.
+           */
+          [...listenersRef.current]
+            .sort((l1, l2) => {
+              const dur1 = lastRenderDurations.get(l1.id) || 0;
+              const dur2 = lastRenderDurations.get(l2.id) || 0;
+              return l1.order - l2.order || dur1 - dur2 || l2.id - l1.id;
             })
-            .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
-
-          const changedKeys = Object.keys(stateChanges) as (keyof Partial<S>)[];
-
-          if (changedKeys.length > 0) {
-            const colorCat = colorize(name);
-            log(
-              `${colorCat.text} %cSTATE Δ%c - %o`,
-              ...colorCat.args,
-              'font-weight:bold',
-              'font-weight:normal',
-              Object.entries(deltaState)
-                .filter(([k]) => changedKeys.includes(k as keyof S))
-                .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
-            );
-
-            /**
-             * Sort the listeners before notifying them. The order is:
-             * 1. by listener order attribute
-             * 2. by previous render duration, faster ones first
-             * 3. by listener id descending -- i.e. newer listeners first
-             *
-             * This prevents slower listeners from blocking faster ones. Also, for
-             * yet-to-be-rendered listeners (i.e. default prev render duration of 0),
-             * newer ones are rendered first.
-             */
-            [...listenersRef.current]
-              .sort((l1, l2) => {
-                const dur1 = lastRenderDurations.get(l1.id) || 0;
-                const dur2 = lastRenderDurations.get(l2.id) || 0;
-                return l1.order - l2.order || dur1 - dur2 || l2.id - l1.id;
-              })
-              .forEach(({ onChangeInternal }) => {
-                setTimeout(() => {
-                  onChangeInternal({
-                    changedKeys,
-                    stateChanges,
-                    newState: stateBrokerRef.current.state,
-                    version: stateBrokerRef.current.version,
-                  });
-                }, 0);
-              });
-          }
-
-          markedCurrentStateRef.current = undefined;
+            .forEach(({ onChangeInternal }) => {
+              setTimeout(() => {
+                onChangeInternal({
+                  changedKeys,
+                  stateChanges: changes,
+                  newState: stateBrokerRef.current.state,
+                  version: stateBrokerRef.current.version,
+                });
+              }, 0);
+            });
         }
       };
       /**
