@@ -283,6 +283,8 @@ export function createState<
         }
       };
 
+      let setStateInProgress = false;
+
       // const setState: StateBroker<S, A>['setState'] = (stateChanges, incremental) => {
       const setState = (stateChanges: Partial<S>, options: SetStateOptions = {}) => {
         const { incremental = true, source } = options;
@@ -341,7 +343,17 @@ export function createState<
 
         const changedKeys = Object.keys(changes) as (keyof Partial<S>)[];
 
+        if (setStateInProgress) {
+          return;
+        }
+
         if (changedKeys.length > 0) {
+          setStateInProgress = true;
+
+          setTimeout(() => {
+            setStateInProgress = false;
+          }, 0);
+
           const colorCat = colorize(name);
           log(
             `${colorCat.text} %cSTATE Δ%c - %o`,

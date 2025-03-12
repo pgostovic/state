@@ -28,6 +28,10 @@ const TestComponent = () => {
     setNums,
     extVal,
     incrementExtVal,
+    fetchSimA,
+    fetchSimB,
+    simA,
+    simB,
   } = numState.useState();
   const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage, setNotReferenced } =
     cheeseState.useState();
@@ -47,6 +51,8 @@ const TestComponent = () => {
       <div data-testid="extVal">{extVal}</div>
       <div data-testid="numRenders">{numRenders.current}</div>
       <div data-testid="typeof-foo">{typeof foo}</div>
+      <div data-testid="simA">{simA ?? ''}</div>
+      <div data-testid="simB">{simB ?? ''}</div>
       {errorAction && <div data-testid="error-action">{errorAction}</div>}
       {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
       <button data-testid="inc-button" onClick={() => incrementNum()}>
@@ -81,6 +87,15 @@ const TestComponent = () => {
       </button>
       <button data-testid="resetAsync" onClick={() => resetAsync()}>
         Reset Async
+      </button>
+      <button
+        data-testid="simultaneous"
+        onClick={() => {
+          fetchSimA();
+          fetchSimB();
+        }}
+      >
+        Simultaneous
       </button>
       {/* NOTE: this also tests that promises for no-op setState() calls get resolved. */}
       <button data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
@@ -261,6 +276,26 @@ test('Setting the same value does not yield render', async () => {
 
   await waitFor(() => {
     expect(numRendersElmnt).toHaveTextContent('1');
+  });
+});
+
+test('simultaneous', async () => {
+  const result = render(
+    <RootWithProvider>
+      <TestComponent />
+    </RootWithProvider>,
+  );
+  const simAElmnt = result.getByTestId('simA');
+  const simBElmnt = result.getByTestId('simB');
+  const simButton = result.getByTestId('simultaneous');
+
+  expect(simAElmnt).toHaveTextContent('');
+  expect(simBElmnt).toHaveTextContent('');
+
+  fireEvent.click(simButton);
+  await waitFor(() => {
+    expect(simAElmnt).toHaveTextContent('a');
+    expect(simBElmnt).toHaveTextContent('b');
   });
 });
 

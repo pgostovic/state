@@ -7,6 +7,8 @@ interface State {
   num: number;
   numPlus1: number;
   extVal: number;
+  simA?: 'a';
+  simB?: 'b';
 }
 
 interface Actions {
@@ -17,6 +19,8 @@ interface Actions {
   setNums(nums: number[]): void;
   increment3TimesAsync(): void;
   incrementExtVal(): void;
+  fetchSimA(): void;
+  fetchSimB(): void;
 }
 
 export type NumStateProps = State & Actions;
@@ -83,6 +87,18 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
 
     incrementExtVal() {
       theExtVal += 1;
+    },
+
+    fetchSimA() {
+      setTimeout(() => {
+        setState({ simA: 'a' });
+      }, 50);
+    },
+
+    fetchSimB() {
+      setTimeout(() => {
+        setState({ simB: 'b' });
+      }, 50);
     },
   }),
 );
