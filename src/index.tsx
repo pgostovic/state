@@ -139,8 +139,10 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    * A render will be triggered if `firstName` changes in the state. However, suppose there
    * is also a value in the state for the attribute `lastName`; no render will occur as a
    * result of `lastName` changing.
+   * @param alwaysRender if true, the component will re-render whenever any state changes. Use
+   * this as a last resort since it will have a negative performance impact.
    */
-  useState(): Omit<S, PR> & Readonly<A>;
+  useState(alwaysRender?: boolean): Omit<S, PR> & Readonly<A>;
   /**
    * This hook provides a low-level way of interacting with the state. State changes are conveyed
    * via the supplied `onStateChange` callback. The return value is a function that can be used
