@@ -285,8 +285,6 @@ export function createState<
         }
       };
 
-      let setStateInProgress = false;
-
       // const setState: StateBroker<S, A>['setState'] = (stateChanges, incremental) => {
       const setState = (stateChanges: Partial<S>, options: SetStateOptions = {}) => {
         const { incremental = true, source } = options;
@@ -345,17 +343,7 @@ export function createState<
 
         const changedKeys = Object.keys(changes) as (keyof Partial<S>)[];
 
-        if (setStateInProgress) {
-          return;
-        }
-
         if (changedKeys.length > 0) {
-          setStateInProgress = true;
-
-          setTimeout(() => {
-            setStateInProgress = false;
-          }, 0);
-
           const colorCat = colorize(name);
           log(
             `${colorCat.text} %cSTATE Δ%c - %o`,
@@ -560,7 +548,7 @@ export function createState<
     const idRef = useRef(idIter.next().value);
 
     const { found, version, state, actions, addListener, removeListener } = useContext(Context);
-    const [, render] = useState(false);
+    const [, render] = useState(-1);
 
     if (!found) {
       throw new Error(
@@ -593,7 +581,7 @@ export function createState<
            */
           if (alwaysRenderOnChange || (changedKeys.some(k => referencedKeys.has(k)) && newVersion > version)) {
             const start = performance.now();
-            render(r => !r);
+            render(newVersion);
             lastRenderDurations.set(idRef.current, performance.now() - start);
           }
         },
