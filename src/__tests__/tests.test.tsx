@@ -62,40 +62,45 @@ const TestComponent = () => {
       <div data-testid="simB">{simB ?? ""}</div>
       {errorAction && <div data-testid="error-action">{errorAction}</div>}
       {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
-      <button data-testid="inc-button" onClick={() => incrementNum()}>
+      <button type="button" data-testid="inc-button" onClick={() => incrementNum()}>
         Increment Num
       </button>
-      <button data-testid="set-num-25" onClick={() => setNumState({ num: 25 })}>
+      <button type="button" data-testid="set-num-25" onClick={() => setNumState({ num: 25 })}>
         Set Num to 25
       </button>
-      <button data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
+      <button type="button" data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
         Increment 3x Asyncs
       </button>
-      <button data-testid="reset-cheese" onClick={() => setCheese("Cheddar")}>
+      <button type="button" data-testid="reset-cheese" onClick={() => setCheese("Cheddar")}>
         Reset Cheese
       </button>
-      <button data-testid="set-not-referenced" onClick={() => setNotReferenced(Date.now())}>
+      <button
+        type="button"
+        data-testid="set-not-referenced"
+        onClick={() => setNotReferenced(Date.now())}
+      >
         Set Not Referenced
       </button>
-      <button data-testid="set-42" onClick={() => setNum42()}>
+      <button type="button" data-testid="set-42" onClick={() => setNum42()}>
         Make it 42
       </button>
-      <button data-testid="trigger-error" onClick={() => triggerAnError()}>
+      <button type="button" data-testid="trigger-error" onClick={() => triggerAnError()}>
         Trigger Error
       </button>
-      <button data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
+      <button type="button" data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
         Trigger Async Error
       </button>
-      <button data-testid="reset" onClick={() => reset()}>
+      <button type="button" data-testid="reset" onClick={() => reset()}>
         Reset
       </button>
-      <button data-testid="incExtVal" onClick={() => incrementExtVal()}>
+      <button type="button" data-testid="incExtVal" onClick={() => incrementExtVal()}>
         Inc Ext Val
       </button>
-      <button data-testid="resetAsync" onClick={() => resetAsync()}>
+      <button type="button" data-testid="resetAsync" onClick={() => resetAsync()}>
         Reset Async
       </button>
       <button
+        type="button"
         data-testid="simultaneous"
         onClick={() => {
           fetchSimA();
@@ -105,7 +110,7 @@ const TestComponent = () => {
         Simultaneous
       </button>
       {/* NOTE: this also tests that promises for no-op setState() calls get resolved. */}
-      <button data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
+      <button type="button" data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
         Set Nums
       </button>
     </div>
@@ -118,7 +123,7 @@ const TestComponentConsumer = ({
 }: { bubba: string } & CheeseStateProps & NumStateProps) => (
   <div>
     <div data-testid="num">{num}</div>
-    <button data-testid="inc-button" onClick={() => incrementNum()}>
+    <button type="button" data-testid="inc-button" onClick={() => incrementNum()}>
       Increment Num
     </button>
   </div>
@@ -135,7 +140,7 @@ const TestComponentMappedConsumer = ({
   }) => (
   <div>
     <div data-testid="num">{mappedNum}</div>
-    <button data-testid="inc-button" onClick={() => mappedIncrementNum()}>
+    <button type="button" data-testid="inc-button" onClick={() => mappedIncrementNum()}>
       Increment Num
     </button>
   </div>

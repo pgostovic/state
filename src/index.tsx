@@ -15,7 +15,7 @@ const log = createLogger("@phnq/state");
 
 const lastRenderDurations = new Map<number, number>();
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: values are intentionally untyped here
 type GenericObject = Record<string, any>;
 type GenericFunction = (...args: unknown[]) => unknown;
 
@@ -173,8 +173,8 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    */
   map<T = unknown>(
     mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T,
-  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Wrapped: ComponentType<any>) => ComponentType<any>;
+    // biome-ignore lint/suspicious/noExplicitAny: wrapped component props are arbitrary
+  ): (Wrapped: ComponentType<any>) => ComponentType<any>;
 }
 
 /**
@@ -318,10 +318,10 @@ export function createState<
         }
 
         // Calculate the derived state from current state plus the incoming changes.
-        const derivedState = stateDerivers.reduce(
-          (d, { key, derive }) => ({ ...d, [key]: derive({ ...currentState, ...stateChanges }) }),
-          {} as Partial<S>,
-        );
+        const derivedState = {} as Partial<S>;
+        for (const { key, derive } of stateDerivers) {
+          derivedState[key as keyof S] = derive({ ...currentState, ...stateChanges }) as S[keyof S];
+        }
 
         // The effective state change is the incoming changes plus the some subset of the derived state.
         const deltaState = { ...stateChanges, ...derivedState };
@@ -351,12 +351,12 @@ export function createState<
           }
         }
 
-        const changes = Object.entries(deltaState)
-          .filter(([k]) => {
+        const changes = Object.fromEntries(
+          Object.entries(deltaState).filter(([k]) => {
             const key = k as keyof Partial<S>;
             return deltaState[key] !== currentState[key];
-          })
-          .reduce((s, [k, v]) => ({ ...s, [k]: v }), {} as Partial<S>);
+          }),
+        ) as Partial<S>;
 
         const changedKeys = Object.keys(changes) as (keyof Partial<S>)[];
 
@@ -367,9 +367,9 @@ export function createState<
             ...colorCat.args,
             "font-weight:bold",
             "font-weight:normal",
-            Object.entries(deltaState)
-              .filter(([k]) => changedKeys.includes(k as keyof S))
-              .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
+            Object.fromEntries(
+              Object.entries(deltaState).filter(([k]) => changedKeys.includes(k as keyof S)),
+            ),
           );
 
           /**
@@ -404,6 +404,7 @@ export function createState<
        * Set up the actions for the current provider. Most of the behaviour is in the actions, especially
        * in `setState()`.
        */
+      // biome-ignore lint/correctness/useExhaustiveDependencies: actions are created once per provider instance
       const actions = useMemo(() => {
         const implicitActionNames = ["destroy", "init", "onChange", "onError"] as (keyof Actions<
           S,
@@ -474,17 +475,20 @@ export function createState<
                 }
               };
 
-              invokeAction();
+              // Errors are caught and routed to onError inside invokeAction.
+              void invokeAction();
             })) as never;
         });
         return Object.freeze(boundActions as Actions<S, A>);
       }, []);
 
       // Call init() on mount, destroy() on unmount.
+      // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount/unmount
       useEffect(() => {
         const { init, destroy } = actions;
         if (init) {
-          init();
+          // Errors are handled by the bound action wrapper.
+          void init();
         }
         isInitializedRef.current = true;
         return () => {
@@ -517,6 +521,7 @@ export function createState<
       if (importedStates) {
         let k: keyof E;
         for (k in importedStates) {
+          // biome-ignore lint/correctness/useHookAtTopLevel: importedStates is fixed for the provider's lifetime
           extStateBrokers[k] = (
             importedStates[k] as InternalStateFactory<E[keyof E]>
           ).useStateBroker();
@@ -599,6 +604,7 @@ export function createState<
       };
     }, []);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: re-subscribes only when the rendered version changes
     useEffect(() => {
       addListener({
         id: idRef.current,
@@ -685,19 +691,16 @@ const idIter = (function* idGen(): IterableIterator<number> {
 })();
 
 const processDefaultState = <S,>(defaultState: State<S>) => ({
-  stateDerivers: Object.keys(defaultState).reduce(
-    (derivers, key) =>
+  stateDerivers: Object.keys(defaultState)
+    .filter((key) => typeof defaultState[key] === "function")
+    .map((key) => ({ key, derive: defaultState[key] as GenericFunction })),
+  initialState: Object.fromEntries(
+    Object.keys(defaultState).map((key) => [
+      key,
       typeof defaultState[key] === "function"
-        ? [...derivers, { key, derive: defaultState[key] as GenericFunction }]
-        : derivers,
-    [] as { key: string; derive: GenericFunction }[],
-  ),
-  initialState: Object.keys(defaultState).reduce(
-    (s, key) =>
-      typeof defaultState[key] === "function"
-        ? { ...s, [key]: (defaultState[key] as GenericFunction)(defaultState) }
-        : { ...s, [key]: defaultState[key] },
-    {} as Partial<S>,
+        ? (defaultState[key] as GenericFunction)(defaultState)
+        : defaultState[key],
+    ]),
   ) as S,
 });
 
