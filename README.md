@@ -173,3 +173,5 @@ There are a few implicitly available lifecycle actions:
 - destroy() - called when the state provider is unmounted
 - onError() - called when an error occurs in an action
 - onChange() - called when the state changes
+
+v2
