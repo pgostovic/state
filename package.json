@@ -6,6 +6,8 @@
   "scripts": {
     "dist": "tsc",
     "postdist": "rm -rf dist/__tests__ && bun scripts/postdist.ts",
+    "prelint": "tsc -b",
+    "lint": "biome check src",
     "clean": "rm -rf dist",
     "test": "bun test",
     "release:patch": "npm run clean; npm version patch; npm run dist; cd dist; npm publish",
