@@ -1,7 +1,5 @@
 # @phnq/state
 
-[![CircleCI](https://circleci.com/gh/pgostovic/message.svg?style=svg)](https://circleci.com/gh/pgostovic/state)
-
 [![npm version](https://badge.fury.io/js/%40phnq%2Fstate.svg)](https://badge.fury.io/js/%40phnq%2Fstate)
 
 The `@phnq/state` library is a flexible, efficient, easy-to-use **state management** solution for React and React Native applications. Built on top of React's [Context API](https://react.dev/learn/passing-data-deeply-with-context), it provides a great way to isolate an application's business logic from its UI, while at the same time allowing convenient access to it from any component.
