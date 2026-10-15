@@ -1,8 +1,9 @@
 import "@testing-library/jest-dom";
 
-import { fireEvent, render, waitFor } from "@testing-library/react";
-import { type ReactNode, useRef } from "react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 
+import { createState } from "..";
 import cheeseState, { type CheeseStateProps } from "./state/cheese";
 import numState, { type NumStateProps } from "./state/num";
 
@@ -532,5 +533,66 @@ test("set state async with previous state within action", async () => {
   await waitFor(() => {
     expect(numElmnt).toHaveTextContent("4");
     expect(numRendersElmnt).toHaveTextContent("4");
+  });
+});
+
+describe("rapid successive state changes", () => {
+  interface RaceState {
+    step: "a" | "b";
+    detail: string;
+  }
+  interface RaceActions {
+    setStep(step: "a" | "b"): void;
+    setDetail(detail: string): void;
+  }
+
+  const raceState = createState<RaceState, RaceActions>(
+    "Race",
+    { step: "a", detail: "none" },
+    ({ setState }) => ({
+      setStep(step) {
+        setState({ step });
+      },
+      setDetail(detail) {
+        setState({ detail });
+      },
+    }),
+  );
+
+  const RaceRoot = raceState.provider(({ children }: { children?: ReactNode }) => <>{children}</>);
+
+  /**
+   * `detail` is only read by the component once `step` is "b". When the render for step "b" commits,
+   * the layout effect fires a second action *before* that render's passive effects have flushed -- i.e.
+   * while the change listener is still the one set up by the previous render, which never read `detail`.
+   */
+  const RaceComponent = ({ onApi }: { onApi: (api: RaceActions) => void }) => {
+    const s = raceState.useState();
+    onApi(s);
+    useLayoutEffect(() => {
+      if (s.step === "b") {
+        s.setDetail("late");
+      }
+    }, [s.step, s.setDetail]);
+    return <div data-testid="race">{`${s.step}:${s.step === "b" ? s.detail : "hidden"}`}</div>;
+  };
+
+  test("a change to a key first read by the latest render is not dropped", async () => {
+    let api: RaceActions | undefined;
+    const result = render(
+      <RaceRoot>
+        <RaceComponent onApi={(a) => (api = a)} />
+      </RaceRoot>,
+    );
+    const elmnt = result.getByTestId("race");
+    expect(elmnt).toHaveTextContent("a:hidden");
+
+    act(() => {
+      api?.setStep("b");
+    });
+
+    await waitFor(() => {
+      expect(elmnt).toHaveTextContent("b:late");
+    });
   });
 });

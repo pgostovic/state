@@ -6,6 +6,7 @@ import {
   type PropsWithChildren,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -595,7 +596,20 @@ export function createState<
       );
     }
 
-    const referencedKeys = new Set<keyof S | keyof A>();
+    /**
+     * The listener below is subscribed once and reads these refs when notified. Capturing `version` and the
+     * referenced keys in the listener's closure (re-subscribed from a passive effect) leaves a window between a
+     * render committing and its effect flushing in which the listener is stale: a change to a key that is only
+     * read by the new render would be dropped. The set of referenced keys only ever grows (extra renders are
+     * harmless, missed ones are not), and the rendered version is updated at commit time.
+     */
+    const referencedKeysRef = useRef<Set<keyof S | keyof A>>(new Set());
+    const renderedVersionRef = useRef(version);
+    const referencedKeys = referencedKeysRef.current;
+
+    useLayoutEffect(() => {
+      renderedVersionRef.current = version;
+    });
 
     useEffect(() => {
       lastRenderDurations.set(idRef.current, 0);
@@ -604,7 +618,7 @@ export function createState<
       };
     }, []);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: re-subscribes only when the rendered version changes
+    // biome-ignore lint/correctness/useExhaustiveDependencies: subscribes once; mutable values are read through refs
     useEffect(() => {
       addListener({
         id: idRef.current,
@@ -621,7 +635,8 @@ export function createState<
            */
           if (
             alwaysRenderOnChange ||
-            (changedKeys.some((k) => referencedKeys.has(k)) && newVersion > version)
+            (changedKeys.some((k) => referencedKeysRef.current.has(k)) &&
+              newVersion > renderedVersionRef.current)
           ) {
             const start = performance.now();
             render(newVersion);
@@ -632,7 +647,7 @@ export function createState<
       return () => {
         removeListener(idRef.current);
       };
-    }, [version]);
+    }, []);
 
     const stateCopy = { ...(state as Omit<S, PR>), ...actions };
 
