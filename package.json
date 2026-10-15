@@ -1,6 +1,6 @@
 {
   "name": "@phnq/state",
-  "version": "1.11.6",
+  "version": "1.11.7",
   "description": "State management for React",
   "main": "index.js",
   "scripts": {
@@ -10,8 +10,7 @@
     "lint": "biome check src",
     "clean": "rm -rf dist",
     "test": "bun test",
-    "release:patch": "npm run clean; npm version patch; npm run dist; cd dist; npm publish",
-    "release:minor": "npm run clean; npm version minor; npm run dist; cd dist; npm publish"
+    "release": "bun run clean && bun test && bun run dist && bun publish --cwd dist"
   },
   "repository": {
     "type": "git",
