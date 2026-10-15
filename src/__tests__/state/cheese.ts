@@ -1,14 +1,14 @@
-import { createState } from '../..';
+import { createState } from "../..";
 
 export interface State {
-  cheese: 'Cheddar' | 'Brie' | 'Gouda';
+  cheese: "Cheddar" | "Brie" | "Gouda";
   errorAction?: string;
   errorMessage?: string;
   notReferenced: number;
 }
 
 interface Actions {
-  setCheese(cheese: State['cheese']): void;
+  setCheese(cheese: State["cheese"]): void;
   triggerAnError(): void;
   triggerAnAsyncError(): void;
   setNotReferenced(notReferenced: number): void;
@@ -17,9 +17,9 @@ interface Actions {
 export type CheeseStateProps = State & Actions;
 
 export default createState<State, Actions>(
-  'Cheese',
+  "Cheese",
   {
-    cheese: 'Cheddar',
+    cheese: "Cheddar",
     errorAction: undefined,
     errorMessage: undefined,
     notReferenced: 0,
@@ -36,12 +36,12 @@ export default createState<State, Actions>(
     },
 
     triggerAnError() {
-      throw new Error('state error');
+      throw new Error("state error");
     },
 
     async triggerAnAsyncError() {
       await sleep(200);
-      throw new Error('async state error');
+      throw new Error("async state error");
     },
 
     setNotReferenced(notReferenced) {
@@ -50,4 +50,4 @@ export default createState<State, Actions>(
   }),
 );
 
-const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
+const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));

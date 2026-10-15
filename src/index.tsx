@@ -1,17 +1,17 @@
-import { createLogger } from '@phnq/log';
-import deepEqual from 'fast-deep-equal';
-import React, {
-  ComponentType,
+import { createLogger } from "@phnq/log";
+import deepEqual from "fast-deep-equal";
+import {
+  type ComponentType,
   createContext,
-  PropsWithChildren,
+  type PropsWithChildren,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
-const log = createLogger('@phnq/state');
+const log = createLogger("@phnq/state");
 
 const lastRenderDurations = new Map<number, number>();
 
@@ -99,7 +99,7 @@ interface ChangeListener<S> {
   onChangeInternal(info: {
     changedKeys: (keyof S)[];
     stateChanges: Partial<S>;
-    newState: StateBroker<S>['state'];
+    newState: StateBroker<S>["state"];
     version: number;
   }): void;
 }
@@ -153,7 +153,9 @@ export interface StateFactory<S = unknown, A = unknown, PR extends keyof S = nev
    * @param onStateChange a callback that will be called whenever the state changes.
    * @returns a function that can be used to affect state changes directly.
    */
-  useSync(onStateChange: (info: { state: S; changes: Partial<S> }) => void): StateBroker<S, A>['setState'];
+  useSync(
+    onStateChange: (info: { state: S; changes: Partial<S> }) => void,
+  ): StateBroker<S, A>["setState"];
   /**
    * @deprecated
    * Wrapping a component with this HOC adds the ancestor provider's state attribute keys
@@ -195,9 +197,12 @@ interface Options<S, E = unknown, P = unknown> {
   deepCompare?: (keyof S)[];
 }
 
-export type GetActions<S, A, P extends GenericObject = GenericObject, E extends GenericObject = GenericObject> = (
-  getActionsParams: GetActionsParams<S, E> & P,
-) => Actions<S, A>;
+export type GetActions<
+  S,
+  A,
+  P extends GenericObject = GenericObject,
+  E extends GenericObject = GenericObject,
+> = (getActionsParams: GetActionsParams<S, E> & P) => Actions<S, A>;
 type MapProvider<P> = <T = unknown>(p: ComponentType<P>) => ComponentType<T & Omit<T, keyof P>>;
 
 /**
@@ -272,7 +277,10 @@ export function createState<
       function getState(extStateName: keyof E): E[keyof E];
       function getState(extStateName?: keyof E): S | E[keyof E] {
         if (extStateName) {
-          return { ...extStateBrokers[extStateName].state, ...extStateBrokers[extStateName].actions };
+          return {
+            ...extStateBrokers[extStateName].state,
+            ...extStateBrokers[extStateName].actions,
+          };
         }
         return { ...stateBrokerRef.current.state };
       }
@@ -292,7 +300,7 @@ export function createState<
         // function setState<T>(stateChanges: SubState<S, T>, incremental = true) {
         if (onChangeCount.current > MAX_CONCURRENT_ON_CHANGE_COUNT) {
           throw new Error(
-            'Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().',
+            "Too many setState() calls from onChange(). Make sure to wrap setState() calls in a condition when called from onChange().",
           );
         }
 
@@ -300,8 +308,13 @@ export function createState<
 
         const currentState = incremental ? stateBrokerRef.current.state : ({} as S);
 
-        if (stateChanges !== initialState && Object.keys(stateChanges).some(k => derivedProperties.includes(k))) {
-          throw new Error(`Derived properties may not be set explicitly: ${derivedProperties.join(', ')}`);
+        if (
+          stateChanges !== initialState &&
+          Object.keys(stateChanges).some((k) => derivedProperties.includes(k))
+        ) {
+          throw new Error(
+            `Derived properties may not be set explicitly: ${derivedProperties.join(", ")}`,
+          );
         }
 
         // Calculate the derived state from current state plus the incoming changes.
@@ -317,7 +330,9 @@ export function createState<
         const prevState = stateBrokerRef.current.state;
         stateBrokerRef.current.state = { ...currentState, ...deltaState };
 
-        if (Object.keys(deltaState).some(k => deltaState[k as keyof S] !== prevState[k as keyof S])) {
+        if (
+          Object.keys(deltaState).some((k) => deltaState[k as keyof S] !== prevState[k as keyof S])
+        ) {
           stateBrokerRef.current.version += 1;
         }
 
@@ -325,8 +340,10 @@ export function createState<
         if (onChange && isInitializedRef.current) {
           try {
             onChangeCount.current += 1;
-            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter(k =>
-              deepCompare.includes(k) ? !deepEqual(deltaState[k], currentState[k]) : deltaState[k] !== currentState[k],
+            const changedKeys = (Object.keys(deltaState) as (keyof Partial<S>)[]).filter((k) =>
+              deepCompare.includes(k)
+                ? !deepEqual(deltaState[k], currentState[k])
+                : deltaState[k] !== currentState[k],
             );
             onChange(changedKeys, { prevState, source, viaExternal: !!source });
           } finally {
@@ -348,8 +365,8 @@ export function createState<
           log(
             `${colorCat.text} %cSTATE Δ%c - %o`,
             ...colorCat.args,
-            'font-weight:bold',
-            'font-weight:normal',
+            "font-weight:bold",
+            "font-weight:normal",
             Object.entries(deltaState)
               .filter(([k]) => changedKeys.includes(k as keyof S))
               .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {}),
@@ -388,10 +405,19 @@ export function createState<
        * in `setState()`.
        */
       const actions = useMemo(() => {
-        const implicitActionNames = ['destroy', 'init', 'onChange', 'onError'] as (keyof Actions<S, A>)[];
+        const implicitActionNames = ["destroy", "init", "onChange", "onError"] as (keyof Actions<
+          S,
+          A
+        >)[];
 
-        const calculateDerivedStateIfNeeded = (actionName: keyof Actions<S, A>, numSetStateCallsBefore: number) => {
-          if (numSetStateCalls.current === numSetStateCallsBefore && !implicitActionNames.includes(actionName)) {
+        const calculateDerivedStateIfNeeded = (
+          actionName: keyof Actions<S, A>,
+          numSetStateCallsBefore: number,
+        ) => {
+          if (
+            numSetStateCalls.current === numSetStateCallsBefore &&
+            !implicitActionNames.includes(actionName)
+          ) {
             setState({});
           }
         };
@@ -410,20 +436,22 @@ export function createState<
          *   }
          */
         const unboundActions = getActions({ ...(props as T & P), getState, setState, resetState });
-        const { onError = (err, k) => log.error(`Error handling action [${String(k)}]`).stack(err) } = unboundActions;
+        const {
+          onError = (err, k) => log.error(`Error handling action [${String(k)}]`).stack(err),
+        } = unboundActions;
         const actionNames = [...Object.keys(unboundActions)] as (keyof Actions<S, A>)[];
         const boundActions: Partial<Actions<S, A>> = {};
-        actionNames.forEach(k => {
+        actionNames.forEach((k) => {
           const action = unboundActions[k];
 
           boundActions[k] = ((...args: never[]): Promise<void> =>
-            new Promise(resolve => {
+            new Promise((resolve) => {
               const colorCat = colorize(name);
               log(
                 `${colorCat.text} %cACTION%c - %s`,
                 ...colorCat.args,
-                'font-weight:bold',
-                'font-weight:normal',
+                "font-weight:bold",
+                "font-weight:normal",
                 k,
                 ...args,
               );
@@ -438,7 +466,7 @@ export function createState<
                   resolve();
                   calculateDerivedStateIfNeeded(k, numSetStateCallsBefore);
                 } catch (err) {
-                  if (k === 'onError') {
+                  if (k === "onError") {
                     throw err;
                   } else {
                     onError(err, k);
@@ -475,7 +503,9 @@ export function createState<
         setState,
         actions,
         addListener(listener: ChangeListener<S>) {
-          listenersRef.current = [...listenersRef.current, listener].sort((l1, l2) => l1.order - l2.order);
+          listenersRef.current = [...listenersRef.current, listener].sort(
+            (l1, l2) => l1.order - l2.order,
+          );
         },
         removeListener(theId: number) {
           listenersRef.current = listenersRef.current.filter(({ id }) => id !== theId);
@@ -487,17 +517,21 @@ export function createState<
       if (importedStates) {
         let k: keyof E;
         for (k in importedStates) {
-          extStateBrokers[k] = (importedStates[k] as InternalStateFactory<E[keyof E]>).useStateBroker();
+          extStateBrokers[k] = (
+            importedStates[k] as InternalStateFactory<E[keyof E]>
+          ).useStateBroker();
         }
       }
 
       // Add/remove current StateBroker on mount/unmount.
       useEffect(() => {
         allStateBrokers = [...allStateBrokers, [name, stateBrokerRef.current as StateBroker]];
-        log('Mounted provider: ', name);
+        log("Mounted provider: ", name);
         return () => {
-          allStateBrokers = allStateBrokers.filter(([, stateBroker]) => stateBroker !== stateBrokerRef.current);
-          log('Unmounted provider: ', name);
+          allStateBrokers = allStateBrokers.filter(
+            ([, stateBroker]) => stateBroker !== stateBrokerRef.current,
+          );
+          log("Unmounted provider: ", name);
         };
       }, []);
 
@@ -518,7 +552,7 @@ export function createState<
     removeListener: () => undefined,
   });
 
-  const useSync: StateFactory<S, A>['useSync'] = onStateChange => {
+  const useSync: StateFactory<S, A>["useSync"] = (onStateChange) => {
     const idRef = useRef(idIter.next().value);
     const { found, addListener, removeListener, setState } = useContext(Context);
 
@@ -541,7 +575,7 @@ export function createState<
       };
     });
 
-    return (s, options) => setState(s, { ...options, source: options?.source || 'external' });
+    return (s, options) => setState(s, { ...options, source: options?.source || "external" });
   };
 
   const useStateFn = (alwaysRenderOnChange = false) => {
@@ -579,7 +613,10 @@ export function createState<
            * the enclosing component may have rendered independently of the current state changing, which would
            * yield a fresh state before the change notification was able to run.
            */
-          if (alwaysRenderOnChange || (changedKeys.some(k => referencedKeys.has(k)) && newVersion > version)) {
+          if (
+            alwaysRenderOnChange ||
+            (changedKeys.some((k) => referencedKeys.has(k)) && newVersion > version)
+          ) {
             const start = performance.now();
             render(newVersion);
             lastRenderDurations.set(idRef.current, performance.now() - start);
@@ -602,27 +639,28 @@ export function createState<
     return stateProxy;
   };
 
-  const consumer = function <T = unknown>(Wrapped: ComponentType<T>) {
-    return function (props: T & S & A) {
+  const consumer = <T = unknown>(Wrapped: ComponentType<T>) =>
+    ((props: T & S & A) => {
       const stateAndActions = useStateFn(true);
       return <Wrapped {...props} {...stateAndActions} />;
-    } as ComponentType<Omit<T, keyof (S & A)>>;
-  };
+    }) as ComponentType<Omit<T, keyof (S & A)>>;
 
-  function map<T extends PropsWithChildren<unknown>>(mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T) {
-    return function (Wrapped: ComponentType<PropsWithChildren<unknown>>): ComponentType<T> {
-      return function (props: T) {
+  function map<T extends PropsWithChildren<unknown>>(
+    mapFn: (s: State<Omit<S, PR>> & Actions<Omit<S, PR>, A>) => T,
+  ) {
+    return (Wrapped: ComponentType<PropsWithChildren<unknown>>): ComponentType<T> =>
+      (props: T) => {
         const stateAndActions = useStateFn();
         return <Wrapped {...props} {...mapFn({ ...stateAndActions })} />;
       };
-    };
   }
 
   return {
     consumer,
     provider: (mapProvider
-      ? (Wrapped: ComponentType<P>) => mapProvider<typeof provider>(provider(props => <Wrapped {...props} />))
-      : provider) as StateFactory<S, A>['provider'],
+      ? (Wrapped: ComponentType<P>) =>
+          mapProvider<typeof provider>(provider((props) => <Wrapped {...props} />))
+      : provider) as StateFactory<S, A>["provider"],
     map,
     useSync,
     useState: useStateFn,
@@ -649,14 +687,14 @@ const idIter = (function* idGen(): IterableIterator<number> {
 const processDefaultState = <S,>(defaultState: State<S>) => ({
   stateDerivers: Object.keys(defaultState).reduce(
     (derivers, key) =>
-      typeof defaultState[key] === 'function'
+      typeof defaultState[key] === "function"
         ? [...derivers, { key, derive: defaultState[key] as GenericFunction }]
         : derivers,
     [] as { key: string; derive: GenericFunction }[],
   ),
   initialState: Object.keys(defaultState).reduce(
     (s, key) =>
-      typeof defaultState[key] === 'function'
+      typeof defaultState[key] === "function"
         ? { ...s, [key]: (defaultState[key] as GenericFunction)(defaultState) }
         : { ...s, [key]: defaultState[key] },
     {} as Partial<S>,
@@ -673,7 +711,8 @@ declare global {
 let allStateBrokers: Array<[string, StateBroker<unknown, unknown>]> = [];
 
 if (!window.getAllStates) {
-  window.getAllStates = () => allStateBrokers.map(([name, stateBroker]) => [name, stateBroker.state]);
+  window.getAllStates = () =>
+    allStateBrokers.map(([name, stateBroker]) => [name, stateBroker.state]);
 }
 
 if (!window.logAllStates) {
@@ -681,7 +720,7 @@ if (!window.logAllStates) {
     allStateBrokers.forEach(([name, stateBroker]) => {
       console.groupCollapsed(
         `${name} %c${Object.keys(stateBroker.state as object).join()}`,
-        'font-weight: normal; color: #666',
+        "font-weight: normal; color: #666",
       );
       console.log(stateBroker.state);
       console.groupEnd();
@@ -691,14 +730,17 @@ if (!window.logAllStates) {
 
 const colorize = (s: string): { args: string[]; text: string } => {
   const charCodeSum = s
-    .split('')
+    .split("")
     .map((char: string) => char.charCodeAt(0))
     .reduce((sum: number, charCode: number) => sum + charCode, 0);
 
   const hue = charCodeSum % 360;
 
   return {
-    args: [`font-weight: bold; color: hsl(${hue}, 100%, 30%)`, 'font-weight: normal; color: inherit'],
+    args: [
+      `font-weight: bold; color: hsl(${hue}, 100%, 30%)`,
+      "font-weight: normal; color: inherit",
+    ],
     text: `%c${s}%c`,
   };
 };

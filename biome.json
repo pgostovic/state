@@ -1,0 +1,28 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
+  "formatter": {
+    "lineWidth": 100,
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedLabels": "error"
+      },
+      "suspicious": {
+        "noImplicitAnyLet": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error"
+      }
+    }
+  },
+  "files": {
+    "includes": ["**/*"]
+  }
+}

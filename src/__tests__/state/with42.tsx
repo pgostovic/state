@@ -1,4 +1,4 @@
-import React, { ComponentType, FC } from 'react';
+import type { ComponentType, FC } from "react";
 
 export interface With42Props {
   fortyTwo: number;
