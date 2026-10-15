@@ -1,10 +1,11 @@
-import '@testing-library/jest-dom/extend-expect';
+import "@testing-library/jest-dom";
 
-import { fireEvent, render, waitFor } from '@testing-library/react';
-import React, { ReactNode, useRef } from 'react';
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 
-import cheeseState, { CheeseStateProps } from './state/cheese';
-import numState, { NumStateProps } from './state/num';
+import { createState } from "..";
+import cheeseState, { type CheeseStateProps } from "./state/cheese";
+import numState, { type NumStateProps } from "./state/num";
 
 interface RootProps {
   stuff?: string;
@@ -33,8 +34,15 @@ const TestComponent = () => {
     simA,
     simB,
   } = numState.useState();
-  const { cheese, setCheese, triggerAnError, triggerAnAsyncError, errorAction, errorMessage, setNotReferenced } =
-    cheeseState.useState();
+  const {
+    cheese,
+    setCheese,
+    triggerAnError,
+    triggerAnAsyncError,
+    errorAction,
+    errorMessage,
+    setNotReferenced,
+  } = cheeseState.useState();
   const numRenders = useRef(0);
 
   numRenders.current += 1;
@@ -51,44 +59,49 @@ const TestComponent = () => {
       <div data-testid="extVal">{extVal}</div>
       <div data-testid="numRenders">{numRenders.current}</div>
       <div data-testid="typeof-foo">{typeof foo}</div>
-      <div data-testid="simA">{simA ?? ''}</div>
-      <div data-testid="simB">{simB ?? ''}</div>
+      <div data-testid="simA">{simA ?? ""}</div>
+      <div data-testid="simB">{simB ?? ""}</div>
       {errorAction && <div data-testid="error-action">{errorAction}</div>}
       {errorMessage && <div data-testid="error-message">{errorMessage}</div>}
-      <button data-testid="inc-button" onClick={() => incrementNum()}>
+      <button type="button" data-testid="inc-button" onClick={() => incrementNum()}>
         Increment Num
       </button>
-      <button data-testid="set-num-25" onClick={() => setNumState({ num: 25 })}>
+      <button type="button" data-testid="set-num-25" onClick={() => setNumState({ num: 25 })}>
         Set Num to 25
       </button>
-      <button data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
+      <button type="button" data-testid="inc-3async-button" onClick={() => increment3TimesAsync()}>
         Increment 3x Asyncs
       </button>
-      <button data-testid="reset-cheese" onClick={() => setCheese('Cheddar')}>
+      <button type="button" data-testid="reset-cheese" onClick={() => setCheese("Cheddar")}>
         Reset Cheese
       </button>
-      <button data-testid="set-not-referenced" onClick={() => setNotReferenced(Date.now())}>
+      <button
+        type="button"
+        data-testid="set-not-referenced"
+        onClick={() => setNotReferenced(Date.now())}
+      >
         Set Not Referenced
       </button>
-      <button data-testid="set-42" onClick={() => setNum42()}>
+      <button type="button" data-testid="set-42" onClick={() => setNum42()}>
         Make it 42
       </button>
-      <button data-testid="trigger-error" onClick={() => triggerAnError()}>
+      <button type="button" data-testid="trigger-error" onClick={() => triggerAnError()}>
         Trigger Error
       </button>
-      <button data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
+      <button type="button" data-testid="trigger-async-error" onClick={() => triggerAnAsyncError()}>
         Trigger Async Error
       </button>
-      <button data-testid="reset" onClick={() => reset()}>
+      <button type="button" data-testid="reset" onClick={() => reset()}>
         Reset
       </button>
-      <button data-testid="incExtVal" onClick={() => incrementExtVal()}>
+      <button type="button" data-testid="incExtVal" onClick={() => incrementExtVal()}>
         Inc Ext Val
       </button>
-      <button data-testid="resetAsync" onClick={() => resetAsync()}>
+      <button type="button" data-testid="resetAsync" onClick={() => resetAsync()}>
         Reset Async
       </button>
       <button
+        type="button"
         data-testid="simultaneous"
         onClick={() => {
           fetchSimA();
@@ -98,17 +111,20 @@ const TestComponent = () => {
         Simultaneous
       </button>
       {/* NOTE: this also tests that promises for no-op setState() calls get resolved. */}
-      <button data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
+      <button type="button" data-testid="setNums" onClick={() => setNums([5, 6, 6, 7, 8])}>
         Set Nums
       </button>
     </div>
   );
 };
 
-const TestComponentConsumer = ({ num, incrementNum }: { bubba: string } & CheeseStateProps & NumStateProps) => (
+const TestComponentConsumer = ({
+  num,
+  incrementNum,
+}: { bubba: string } & CheeseStateProps & NumStateProps) => (
   <div>
     <div data-testid="num">{num}</div>
-    <button data-testid="inc-button" onClick={() => incrementNum()}>
+    <button type="button" data-testid="inc-button" onClick={() => incrementNum()}>
       Increment Num
     </button>
   </div>
@@ -125,177 +141,179 @@ const TestComponentMappedConsumer = ({
   }) => (
   <div>
     <div data-testid="num">{mappedNum}</div>
-    <button data-testid="inc-button" onClick={() => mappedIncrementNum()}>
+    <button type="button" data-testid="inc-button" onClick={() => mappedIncrementNum()}>
       Increment Num
     </button>
   </div>
 );
 
 const TestComponentAndMappedConsumer = cheeseState.consumer(
-  numState.map(s => ({ ...s, mappedNum: s.num, mappedIncrementNum: s.incrementNum }))(TestComponentMappedConsumer),
+  numState.map((s) => ({ ...s, mappedNum: s.num, mappedIncrementNum: s.incrementNum }))(
+    TestComponentMappedConsumer,
+  ),
 );
 
-test('default state', () => {
+test("default state", () => {
   const result = render(
     <RootWithProvider stuff="whatever">
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  expect(numElmnt).toHaveTextContent('1');
+  const numElmnt = result.getByTestId("num");
+  expect(numElmnt).toHaveTextContent("1");
 });
 
-test('state change with action', async () => {
+test("state change with action", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const numRendersElmnt = result.getByTestId('numRenders');
-  const button = result.getByTestId('inc-button');
+  const numElmnt = result.getByTestId("num");
+  const numRendersElmnt = result.getByTestId("numRenders");
+  const button = result.getByTestId("inc-button");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(numRendersElmnt).toHaveTextContent("1");
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('2');
-    expect(numRendersElmnt).toHaveTextContent('2');
+    expect(numElmnt).toHaveTextContent("2");
+    expect(numRendersElmnt).toHaveTextContent("2");
   });
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('3');
+    expect(numElmnt).toHaveTextContent("3");
   });
 });
 
-test('state change with useSync', async () => {
+test("state change with useSync", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const numRendersElmnt = result.getByTestId('numRenders');
-  const button25 = result.getByTestId('set-num-25');
-  const button = result.getByTestId('inc-button');
+  const numElmnt = result.getByTestId("num");
+  const numRendersElmnt = result.getByTestId("numRenders");
+  const button25 = result.getByTestId("set-num-25");
+  const button = result.getByTestId("inc-button");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(numRendersElmnt).toHaveTextContent("1");
 
   fireEvent.click(button25);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('1');
-    expect(numRendersElmnt).toHaveTextContent('1');
+    expect(numElmnt).toHaveTextContent("1");
+    expect(numRendersElmnt).toHaveTextContent("1");
   });
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('26');
+    expect(numElmnt).toHaveTextContent("26");
     expect(Number(numRendersElmnt.textContent)).toBeGreaterThan(1);
   });
 });
 
-test('state change not referenced', async () => {
+test("state change not referenced", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numRendersElmnt = result.getByTestId('numRenders');
-  const setNrButton = result.getByTestId('set-not-referenced');
-  const incButton = result.getByTestId('inc-button');
+  const numRendersElmnt = result.getByTestId("numRenders");
+  const setNrButton = result.getByTestId("set-not-referenced");
+  const incButton = result.getByTestId("inc-button");
 
   // Confirm that no render happens when changing a non-referenced state value.
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(numRendersElmnt).toHaveTextContent("1");
   fireEvent.click(setNrButton);
 
   await waitFor(() => {
-    expect(numRendersElmnt).toHaveTextContent('1');
+    expect(numRendersElmnt).toHaveTextContent("1");
   });
 
   // Confirm that a render does happen when a referenced state value changes.
   fireEvent.click(incButton);
 
   await waitFor(() => {
-    expect(numRendersElmnt).toHaveTextContent('2');
+    expect(numRendersElmnt).toHaveTextContent("2");
   });
 });
 
-test('state change with action (via consumer)', async () => {
+test("state change with action (via consumer)", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponentAndConsumer bubba="gump" />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const button = result.getByTestId('inc-button');
+  const numElmnt = result.getByTestId("num");
+  const button = result.getByTestId("inc-button");
 
-  expect(numElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('2');
+    expect(numElmnt).toHaveTextContent("2");
   });
 });
 
-test('state change with action (via mapped consumer)', async () => {
+test("state change with action (via mapped consumer)", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponentAndMappedConsumer bubba="gump" />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const button = result.getByTestId('inc-button');
+  const numElmnt = result.getByTestId("num");
+  const button = result.getByTestId("inc-button");
 
-  expect(numElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('2');
+    expect(numElmnt).toHaveTextContent("2");
   });
 });
 
-test('Setting the same value does not yield render', async () => {
+test("Setting the same value does not yield render", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
 
-  const cheeseElmnt = result.getByTestId('cheese');
-  const numRendersElmnt = result.getByTestId('numRenders');
-  const resetCheeseButton = result.getByTestId('reset-cheese');
+  const cheeseElmnt = result.getByTestId("cheese");
+  const numRendersElmnt = result.getByTestId("numRenders");
+  const resetCheeseButton = result.getByTestId("reset-cheese");
 
-  expect(cheeseElmnt).toHaveTextContent('Cheddar');
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(cheeseElmnt).toHaveTextContent("Cheddar");
+  expect(numRendersElmnt).toHaveTextContent("1");
 
   // This will set the value of cheese to 'Cheddar', which is already the value.
   fireEvent.click(resetCheeseButton);
 
   await waitFor(() => {
-    expect(numRendersElmnt).toHaveTextContent('1');
+    expect(numRendersElmnt).toHaveTextContent("1");
   });
 });
 
-test('simultaneous', async () => {
+test("simultaneous", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const simAElmnt = result.getByTestId('simA');
-  const simBElmnt = result.getByTestId('simB');
-  const simButton = result.getByTestId('simultaneous');
+  const simAElmnt = result.getByTestId("simA");
+  const simBElmnt = result.getByTestId("simB");
+  const simButton = result.getByTestId("simultaneous");
 
-  expect(simAElmnt).toHaveTextContent('');
-  expect(simBElmnt).toHaveTextContent('');
+  expect(simAElmnt).toHaveTextContent("");
+  expect(simBElmnt).toHaveTextContent("");
 
   fireEvent.click(simButton);
   await waitFor(() => {
-    expect(simAElmnt).toHaveTextContent('a');
-    expect(simBElmnt).toHaveTextContent('b');
+    expect(simAElmnt).toHaveTextContent("a");
+    expect(simBElmnt).toHaveTextContent("b");
   });
 });
 
@@ -327,160 +345,160 @@ test('simultaneous', async () => {
 //   expect(numDestroyCallsC - numDestroyCallsB).toBe(1);
 // });
 
-test('provider mapping', async () => {
+test("provider mapping", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const button = result.getByTestId('set-42');
+  const numElmnt = result.getByTestId("num");
+  const button = result.getByTestId("set-42");
 
-  expect(numElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
 
   fireEvent.click(button);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('42');
+    expect(numElmnt).toHaveTextContent("42");
   });
 });
 
-test('derived state', async () => {
+test("derived state", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const numPlus1Elmnt = result.getByTestId('numPlus1');
-  const button = result.getByTestId('set-42');
+  const numElmnt = result.getByTestId("num");
+  const numPlus1Elmnt = result.getByTestId("numPlus1");
+  const button = result.getByTestId("set-42");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(numPlus1Elmnt).toHaveTextContent('2');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(numPlus1Elmnt).toHaveTextContent("2");
 
   fireEvent.click(button);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('42');
-    expect(numPlus1Elmnt).toHaveTextContent('43');
+    expect(numElmnt).toHaveTextContent("42");
+    expect(numPlus1Elmnt).toHaveTextContent("43");
   });
 });
 
-test('error catch all', async () => {
+test("error catch all", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const button = result.getByTestId('trigger-error');
+  const button = result.getByTestId("trigger-error");
   fireEvent.click(button);
 
-  const errorActionElement = await waitFor(() => result.getByTestId('error-action'));
-  expect(errorActionElement).toHaveTextContent('triggerAnError');
+  const errorActionElement = await waitFor(() => result.getByTestId("error-action"));
+  expect(errorActionElement).toHaveTextContent("triggerAnError");
 
-  const errorMessageElement = await waitFor(() => result.getByTestId('error-message'));
-  expect(errorMessageElement).toHaveTextContent('state error');
+  const errorMessageElement = await waitFor(() => result.getByTestId("error-message"));
+  expect(errorMessageElement).toHaveTextContent("state error");
 });
 
-test('error catch all async', async () => {
+test("error catch all async", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const button = result.getByTestId('trigger-async-error');
+  const button = result.getByTestId("trigger-async-error");
   fireEvent.click(button);
 
-  const errorActionElement = await waitFor(() => result.getByTestId('error-action'));
-  expect(errorActionElement).toHaveTextContent('triggerAnAsyncError');
+  const errorActionElement = await waitFor(() => result.getByTestId("error-action"));
+  expect(errorActionElement).toHaveTextContent("triggerAnAsyncError");
 
-  const errorMessageElement = await waitFor(() => result.getByTestId('error-message'));
-  expect(errorMessageElement).toHaveTextContent('async state error');
+  const errorMessageElement = await waitFor(() => result.getByTestId("error-message"));
+  expect(errorMessageElement).toHaveTextContent("async state error");
 });
 
-test('reset state', async () => {
+test("reset state", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const incButton = result.getByTestId('inc-button');
-  const resetButton = result.getByTestId('reset');
-  const typeofFooElmnt = result.getByTestId('typeof-foo');
+  const numElmnt = result.getByTestId("num");
+  const incButton = result.getByTestId("inc-button");
+  const resetButton = result.getByTestId("reset");
+  const typeofFooElmnt = result.getByTestId("typeof-foo");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(typeofFooElmnt).toHaveTextContent('undefined');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(typeofFooElmnt).toHaveTextContent("undefined");
 
   fireEvent.click(incButton);
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('2');
-    expect(typeofFooElmnt).toHaveTextContent('string');
+    expect(numElmnt).toHaveTextContent("2");
+    expect(typeofFooElmnt).toHaveTextContent("string");
   });
 
   fireEvent.click(resetButton);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('1');
+    expect(numElmnt).toHaveTextContent("1");
 
     // Make sure optional `foo` (with no initial value) is set back to undefined.
-    expect(typeofFooElmnt).toHaveTextContent('undefined');
+    expect(typeofFooElmnt).toHaveTextContent("undefined");
   });
 });
 
-test('reset state async', async () => {
+test("reset state async", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const incButton = result.getByTestId('inc-button');
-  const resetAsyncButton = result.getByTestId('resetAsync');
+  const numElmnt = result.getByTestId("num");
+  const incButton = result.getByTestId("inc-button");
+  const resetAsyncButton = result.getByTestId("resetAsync");
 
-  expect(numElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
 
   fireEvent.click(incButton);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('2');
+    expect(numElmnt).toHaveTextContent("2");
   });
 
   fireEvent.click(resetAsyncButton);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('1');
+    expect(numElmnt).toHaveTextContent("1");
   });
 });
 
-test('derived state is always calculated when actions called', async () => {
+test("derived state is always calculated when actions called", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const extValElmnt = result.getByTestId('extVal');
-  const incExtValButton = result.getByTestId('incExtVal');
+  const extValElmnt = result.getByTestId("extVal");
+  const incExtValButton = result.getByTestId("incExtVal");
 
-  expect(extValElmnt).toHaveTextContent('0');
+  expect(extValElmnt).toHaveTextContent("0");
 
   fireEvent.click(incExtValButton);
   await waitFor(() => {
-    expect(extValElmnt).toHaveTextContent('1');
+    expect(extValElmnt).toHaveTextContent("1");
   });
 });
 
-test('async action with awaited setState()', async () => {
+test("async action with awaited setState()", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const setNumsButton = result.getByTestId('setNums');
-  const numRendersElmnt = result.getByTestId('numRenders');
+  const numElmnt = result.getByTestId("num");
+  const setNumsButton = result.getByTestId("setNums");
+  const numRendersElmnt = result.getByTestId("numRenders");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(numRendersElmnt).toHaveTextContent("1");
 
   /**
    * Note: this calls the following:
@@ -492,28 +510,89 @@ test('async action with awaited setState()', async () => {
   fireEvent.click(setNumsButton);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('8');
-    expect(numRendersElmnt).toHaveTextContent('5');
+    expect(numElmnt).toHaveTextContent("8");
+    expect(numRendersElmnt).toHaveTextContent("5");
   });
 });
 
-test('set state async with previous state within action', async () => {
+test("set state async with previous state within action", async () => {
   const result = render(
     <RootWithProvider>
       <TestComponent />
     </RootWithProvider>,
   );
-  const numElmnt = result.getByTestId('num');
-  const numRendersElmnt = result.getByTestId('numRenders');
-  const button = result.getByTestId('inc-3async-button');
+  const numElmnt = result.getByTestId("num");
+  const numRendersElmnt = result.getByTestId("numRenders");
+  const button = result.getByTestId("inc-3async-button");
 
-  expect(numElmnt).toHaveTextContent('1');
-  expect(numRendersElmnt).toHaveTextContent('1');
+  expect(numElmnt).toHaveTextContent("1");
+  expect(numRendersElmnt).toHaveTextContent("1");
 
   fireEvent.click(button);
 
   await waitFor(() => {
-    expect(numElmnt).toHaveTextContent('4');
-    expect(numRendersElmnt).toHaveTextContent('4');
+    expect(numElmnt).toHaveTextContent("4");
+    expect(numRendersElmnt).toHaveTextContent("4");
+  });
+});
+
+describe("rapid successive state changes", () => {
+  interface RaceState {
+    step: "a" | "b";
+    detail: string;
+  }
+  interface RaceActions {
+    setStep(step: "a" | "b"): void;
+    setDetail(detail: string): void;
+  }
+
+  const raceState = createState<RaceState, RaceActions>(
+    "Race",
+    { step: "a", detail: "none" },
+    ({ setState }) => ({
+      setStep(step) {
+        setState({ step });
+      },
+      setDetail(detail) {
+        setState({ detail });
+      },
+    }),
+  );
+
+  const RaceRoot = raceState.provider(({ children }: { children?: ReactNode }) => <>{children}</>);
+
+  /**
+   * `detail` is only read by the component once `step` is "b". When the render for step "b" commits,
+   * the layout effect fires a second action *before* that render's passive effects have flushed -- i.e.
+   * while the change listener is still the one set up by the previous render, which never read `detail`.
+   */
+  const RaceComponent = ({ onApi }: { onApi: (api: RaceActions) => void }) => {
+    const s = raceState.useState();
+    onApi(s);
+    useLayoutEffect(() => {
+      if (s.step === "b") {
+        s.setDetail("late");
+      }
+    }, [s.step, s.setDetail]);
+    return <div data-testid="race">{`${s.step}:${s.step === "b" ? s.detail : "hidden"}`}</div>;
+  };
+
+  test("a change to a key first read by the latest render is not dropped", async () => {
+    let api: RaceActions | undefined;
+    const result = render(
+      <RaceRoot>
+        <RaceComponent onApi={(a) => (api = a)} />
+      </RaceRoot>,
+    );
+    const elmnt = result.getByTestId("race");
+    expect(elmnt).toHaveTextContent("a:hidden");
+
+    act(() => {
+      api?.setStep("b");
+    });
+
+    await waitFor(() => {
+      expect(elmnt).toHaveTextContent("b:late");
+    });
   });
 });

@@ -1,14 +1,14 @@
-import { createState } from '../..';
-import cheeseState, { CheeseStateProps } from './cheese';
-import with42, { With42Props } from './with42';
+import { createState } from "../..";
+import cheeseState, { type CheeseStateProps } from "./cheese";
+import with42, { type With42Props } from "./with42";
 
 interface State {
   foo?: string;
   num: number;
   numPlus1: number;
   extVal: number;
-  simA?: 'a';
-  simB?: 'b';
+  simA?: "a";
+  simB?: "b";
 }
 
 interface Actions {
@@ -28,7 +28,7 @@ export type NumStateProps = State & Actions;
 let theExtVal = 0;
 
 export default createState<State, Actions, With42Props, { cheeseState: CheeseStateProps }>(
-  'Num',
+  "Num",
   {
     imported: { cheeseState },
     mapProvider: with42,
@@ -54,7 +54,7 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
 
       // console.log('=================YO2', getState('cheeseState').cheese);
 
-      setState({ num: num + 1, foo: 'bar' });
+      setState({ num: num + 1, foo: "bar" });
     },
 
     setNum42() {
@@ -91,16 +91,16 @@ export default createState<State, Actions, With42Props, { cheeseState: CheeseSta
 
     fetchSimA() {
       setTimeout(() => {
-        setState({ simA: 'a' });
+        setState({ simA: "a" });
       }, 50);
     },
 
     fetchSimB() {
       setTimeout(() => {
-        setState({ simB: 'b' });
+        setState({ simB: "b" });
       }, 50);
     },
   }),
 );
 
-const sleep = (millis: number) => new Promise(resolve => setTimeout(resolve, millis));
+const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));

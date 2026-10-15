@@ -5,3 +5,4 @@ dist
 ._.DS_Store
 coverage
 .parcel-cache
+*.tsbuildinfo
